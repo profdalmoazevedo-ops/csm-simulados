@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Filter, Sliders, Loader2, Zap, X } from 'lucide-react';
+import { Filter, Sliders, Loader2, Zap, X, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 const MultiSelectBuscavel = ({ label, placeholder, opcoes, valores, setValores, disabled = false }: { label: string, placeholder: string, opcoes: any[], valores: string[], setValores: (v: string[]) => void, disabled?: boolean }) => {
@@ -67,7 +67,6 @@ const MultiSelectBuscavel = ({ label, placeholder, opcoes, valores, setValores, 
   );
 };
 
-// Funções de tradução do formato
 const traduzirFormatoParaExibicao = (val: string) => {
   if (val === 'certo_errado') return 'Certo ou Errado';
   if (val === 'multipla_escolha') return 'Múltipla Escolha';
@@ -83,7 +82,10 @@ const traduzirFormatoParaBanco = (val: string) => {
 export default function GeradorSimulados() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  
+  // Base de dados local para cálculos em tempo real
   const [dadosBase, setDadosBase] = useState<any[]>([]);
+  const [questoesRespondidas, setQuestoesRespondidas] = useState<Set<string>>(new Set());
   
   const [opcoes, setOpcoes] = useState({ bancas: [] as string[], materias: [] as string[], anos: [] as number[], cargos: [] as string[], formatos: [] as string[], topicos: [] as string[] });
 
@@ -95,14 +97,30 @@ export default function GeradorSimulados() {
   const [topicosSelecionados, setTopicosSelecionados] = useState<string[]>([]);
   
   const [quantidadeQuestoes, setQuantidadeQuestoes] = useState(10);
+  const [incluirRespondidas, setIncluirRespondidas] = useState(false); // Checkbox: por padrão, ignora as já feitas
 
   useEffect(() => {
-    async function carregarOpcoesFiltro() {
-      const { data, error } = await supabase.from('questoes').select('banca, materia, ano, cargo, topico, tipo_questao');
+    async function carregarBaseDeDados() {
+      // 1. Pega usuário logado
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // 2. Se logado, puxa todas as IDs de questões que ele já respondeu
+      if (user) {
+        const { data: respostas } = await supabase
+          .from('respostas_alunos')
+          .select('questao_id')
+          .eq('aluno_id', user.id);
+          
+        if (respostas) {
+          setQuestoesRespondidas(new Set(respostas.map(r => r.questao_id)));
+        }
+      }
+
+      // 3. Puxa o "esqueleto" (sem texto) de todas as questões do banco
+      const { data, error } = await supabase.from('questoes').select('id, banca, materia, ano, cargo, topico, tipo_questao');
       if (data && !error) {
         setDadosBase(data);
         
-        // Aplica a tradução na hora de montar a lista de opções de formato
         const formatosTraduzidos = data.map(q => traduzirFormatoParaExibicao(q.tipo_questao?.trim())).filter(Boolean);
 
         setOpcoes(prev => ({
@@ -115,9 +133,10 @@ export default function GeradorSimulados() {
         }));
       }
     }
-    carregarOpcoesFiltro();
+    carregarBaseDeDados();
   }, []);
 
+  // Filtra as opções de tópicos de acordo com a matéria
   useEffect(() => {
     if (materiasSelecionadas.length > 0) {
       const topicosDasMaterias = dadosBase
@@ -132,6 +151,30 @@ export default function GeradorSimulados() {
     }
   }, [materiasSelecionadas, dadosBase]);
 
+  // CALCULA EM TEMPO REAL QUANTAS QUESTÕES BATEM COM O FILTRO
+  const questoesDisponiveis = useMemo(() => {
+    let filtradas = dadosBase;
+
+    if (bancasSelecionadas.length > 0) filtradas = filtradas.filter(q => bancasSelecionadas.includes(q.banca?.trim()));
+    if (materiasSelecionadas.length > 0) filtradas = filtradas.filter(q => materiasSelecionadas.includes(q.materia?.trim()));
+    if (anosSelecionados.length > 0) filtradas = filtradas.filter(q => anosSelecionados.includes(String(q.ano)));
+    if (cargosSelecionados.length > 0) filtradas = filtradas.filter(q => cargosSelecionados.includes(q.cargo?.trim()));
+    if (topicosSelecionados.length > 0) filtradas = filtradas.filter(q => topicosSelecionados.includes(q.topico?.trim()));
+    
+    if (formatosSelecionados.length > 0) {
+      const formatosParaBanco = formatosSelecionados.map(traduzirFormatoParaBanco);
+      filtradas = filtradas.filter(q => formatosParaBanco.includes(q.tipo_questao?.trim()));
+    }
+
+    // Aplica a regra de exclusão das já respondidas
+    if (!incluirRespondidas) {
+      filtradas = filtradas.filter(q => !questoesRespondidas.has(q.id));
+    }
+
+    return filtradas.map(q => q.id); // Retorna apenas as IDs disponíveis
+  }, [dadosBase, bancasSelecionadas, materiasSelecionadas, anosSelecionados, cargosSelecionados, topicosSelecionados, formatosSelecionados, incluirRespondidas, questoesRespondidas]);
+
+
   const gerarSimulado = async () => {
     setLoading(true);
     try {
@@ -142,39 +185,22 @@ export default function GeradorSimulados() {
         return;
       }
 
-      let query = supabase.from('questoes').select('id');
-      
-      if (bancasSelecionadas.length > 0) query = query.in('banca', bancasSelecionadas);
-      if (materiasSelecionadas.length > 0) query = query.in('materia', materiasSelecionadas);
-      if (anosSelecionados.length > 0) query = query.in('ano', anosSelecionados);
-      if (cargosSelecionados.length > 0) query = query.in('cargo', cargosSelecionados);
-      if (topicosSelecionados.length > 0) query = query.in('topico', topicosSelecionados);
-      
-      // Traduz os formatos de volta para o padrão do banco antes de consultar
-      if (formatosSelecionados.length > 0) {
-        const formatosParaBanco = formatosSelecionados.map(traduzirFormatoParaBanco);
-        query = query.in('tipo_questao', formatosParaBanco);
-      }
-
-      const { data: questoesEncontradas, error: erroBusca } = await query;
-
-      if (erroBusca) throw erroBusca;
-
-      if (!questoesEncontradas || questoesEncontradas.length === 0) {
+      if (questoesDisponiveis.length === 0) {
         alert("Nenhuma questão encontrada com esses filtros. Tente ampliar sua busca.");
         setLoading(false);
         return;
       }
 
-      const selecionadas = questoesEncontradas
+      // Embaralha os IDs filtrados localmente e corta na quantidade desejada
+      // Se tiver menos questões do que o aluno pediu, ele usa o total disponível
+      const quantidadeReal = Math.min(quantidadeQuestoes, questoesDisponiveis.length);
+      const selecionadas = questoesDisponiveis
         .sort(() => Math.random() - 0.5)
-        .slice(0, quantidadeQuestoes);
+        .slice(0, quantidadeReal);
 
-      // Regra Cebraspe: Ativa apenas se o único formato selecionado for "Certo ou Errado" (traduzido para banco)
       const formatosParaBanco = formatosSelecionados.map(traduzirFormatoParaBanco);
       const regraCebraspeAtiva = formatosParaBanco.length === 1 && formatosParaBanco.includes('certo_errado');
 
-      // 3. Cria o Simulado na tabela 'simulados'
       const { data: novoSimulado, error: erroSimulado } = await supabase
         .from('simulados')
         .insert({
@@ -183,17 +209,17 @@ export default function GeradorSimulados() {
           criado_por: user.id,
           visivel: true,
           regra_subtracao: regraCebraspeAtiva,
-          data_liberacao: new Date().toISOString(), // Preenche a data obrigatória com o momento atual
-          e_gratis: false // Evita erro caso essa coluna também seja NOT NULL
+          data_liberacao: new Date().toISOString(),
+          e_gratis: false
         })
         .select()
         .single();
 
       if (erroSimulado) throw erroSimulado;
 
-      const insercoesQuestoes = selecionadas.map((q, index) => ({
+      const insercoesQuestoes = selecionadas.map((id, index) => ({
         simulado_id: novoSimulado.id,
-        questao_id: q.id,
+        questao_id: id, // Passa direto o ID mapeado
         ordem: index + 1
       }));
 
@@ -224,9 +250,17 @@ export default function GeradorSimulados() {
         <div className="bg-[#131c2f]/30 border border-white/5 p-8 md:p-12 rounded-3xl space-y-10">
           
           <div>
-            <h3 className="flex items-center gap-2 font-bold text-white mb-6 border-b border-white/5 pb-4">
-              <Filter className="w-5 h-5 text-blue-500" /> Direcionamento da Prova
-            </h3>
+            <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/5 pb-4 mb-6 gap-4">
+              <h3 className="flex items-center gap-2 font-bold text-white">
+                <Filter className="w-5 h-5 text-blue-500" /> Direcionamento da Prova
+              </h3>
+              
+              {/* Badge Dinâmico em tempo real */}
+              <div className="bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-lg text-blue-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all">
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                {questoesDisponiveis.length} questões disponíveis
+              </div>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <MultiSelectBuscavel label="Banca" placeholder="Ex: FGV, VUNESP" opcoes={opcoes.bancas} valores={bancasSelecionadas} setValores={setBancasSelecionadas} />
@@ -263,13 +297,26 @@ export default function GeradorSimulados() {
                   </button>
                 ))}
               </div>
+
+              {/* Checkbox Inéditas vs Repetidas */}
+              <label className="flex items-center gap-3 cursor-pointer mt-8 w-fit group">
+                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                  incluirRespondidas ? 'bg-blue-600 border-blue-500' : 'bg-[#09090b] border-white/10 group-hover:border-blue-500/50'
+                }`}>
+                  {incluirRespondidas && <Check className="w-3 h-3 text-white" />}
+                </div>
+                <span className="text-sm text-zinc-400 group-hover:text-zinc-200 transition-colors">
+                  Incluir questões que eu já respondi
+                </span>
+              </label>
+
             </div>
           </div>
 
           <button 
             onClick={gerarSimulado}
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed text-white font-black uppercase text-sm tracking-widest py-6 rounded-2xl flex items-center justify-center gap-3 transition-colors mt-8 shadow-xl shadow-blue-900/20"
+            disabled={loading || questoesDisponiveis.length === 0}
+            className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-white font-black uppercase text-sm tracking-widest py-6 rounded-2xl flex items-center justify-center gap-3 transition-colors mt-8 shadow-xl shadow-blue-900/20"
           >
             {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Zap className="w-6 h-6" /> Gerar Prova e Começar</>}
           </button>
