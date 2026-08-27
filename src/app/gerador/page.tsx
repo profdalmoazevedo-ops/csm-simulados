@@ -174,6 +174,7 @@ export default function GeradorSimulados() {
       const formatosParaBanco = formatosSelecionados.map(traduzirFormatoParaBanco);
       const regraCebraspeAtiva = formatosParaBanco.length === 1 && formatosParaBanco.includes('certo_errado');
 
+      // 3. Cria o Simulado na tabela 'simulados'
       const { data: novoSimulado, error: erroSimulado } = await supabase
         .from('simulados')
         .insert({
@@ -181,7 +182,9 @@ export default function GeradorSimulados() {
           tipo: 'gerado_aluno',
           criado_por: user.id,
           visivel: true,
-          regra_subtracao: regraCebraspeAtiva
+          regra_subtracao: regraCebraspeAtiva,
+          data_liberacao: new Date().toISOString(), // Preenche a data obrigatória com o momento atual
+          e_gratis: false // Evita erro caso essa coluna também seja NOT NULL
         })
         .select()
         .single();
