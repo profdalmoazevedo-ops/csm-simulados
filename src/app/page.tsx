@@ -14,11 +14,11 @@ export default function Dashboard() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Módulo 1: Prática Livre */}
+          {/* Módulo 1: Banco de Questões */}
           <div className="p-8 rounded-3xl bg-[#131c2f]/30 border border-emerald-500/20 hover:border-emerald-500/50 transition-all flex flex-col justify-between">
             <div>
               <Target className="w-8 h-8 mb-6 text-emerald-500" />
-              <h3 className="text-xl font-bold text-white mb-2">Prática Livre</h3>
+              <h3 className="text-xl font-bold text-white mb-2">Banco de Questões</h3>
               <p className="text-sm text-zinc-400 mb-8">
                 Resolva questões avulsas do banco. Filtre por banca, disciplina, assunto e ano.
               </p>
