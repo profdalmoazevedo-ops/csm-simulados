@@ -1,29 +1,51 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase'; // Ajuste o caminho se sua pasta lib estiver em outro lugar
+import { supabase } from '@/lib/supabase';
 import { Filter, Search, Loader2, BookOpen } from 'lucide-react';
 
 export default function BancoDeQuestoes() {
   const [questoes, setQuestoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Estados para os filtros
+  // Estados para as opções dos filtros (carregados do banco)
+  const [opcoes, setOpcoes] = useState({ bancas: [] as string[], materias: [] as string[], anos: [] as number[] });
+  
+  // Estados para a seleção do usuário
   const [bancaSelecionada, setBancaSelecionada] = useState('');
   const [materiaSelecionada, setMateriaSelecionada] = useState('');
   const [anoSelecionado, setAnoSelecionado] = useState('');
 
-  // Busca as questões no Supabase
+  // Carrega os filtros únicos disponíveis no banco
+  useEffect(() => {
+    async function carregarOpcoesFiltro() {
+      // Busca apenas as colunas necessárias para montar os filtros
+      const { data, error } = await supabase.from('questoes').select('banca, materia, ano');
+      
+      if (data && !error) {
+        // Usa o Set para remover duplicatas e extrair apenas valores únicos
+        const bancasUnicas = [...new Set(data.map(q => q.banca).filter(Boolean))].sort();
+        const materiasUnicas = [...new Set(data.map(q => q.materia).filter(Boolean))].sort();
+        const anosUnicos = [...new Set(data.map(q => q.ano).filter(Boolean))].sort((a, b) => b - a); // Ordem decrescente
+        
+        setOpcoes({ 
+          bancas: bancasUnicas as string[], 
+          materias: materiasUnicas as string[], 
+          anos: anosUnicos as number[] 
+        });
+      }
+    }
+    carregarOpcoesFiltro();
+  }, []);
+
+  // Busca as questões baseadas nos filtros selecionados
   const buscarQuestoes = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('questoes')
-        .select('*')
-        .limit(10); // Limitando a 10 para o feed inicial não pesar
+      let query = supabase.from('questoes').select('*').limit(10);
 
-      if (bancaSelecionada) query = query.ilike('banca', `%${bancaSelecionada}%`);
-      if (materiaSelecionada) query = query.ilike('materia', `%${materiaSelecionada}%`);
+      if (bancaSelecionada) query = query.eq('banca', bancaSelecionada);
+      if (materiaSelecionada) query = query.eq('materia', materiaSelecionada);
       if (anoSelecionado) query = query.eq('ano', parseInt(anoSelecionado));
 
       const { data, error } = await query;
@@ -39,7 +61,7 @@ export default function BancoDeQuestoes() {
 
   useEffect(() => {
     buscarQuestoes();
-  }, []); // Carrega as primeiras questões ao abrir a página
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#09090b] text-[#e4e4e7] font-sans pb-20">
@@ -52,7 +74,7 @@ export default function BancoDeQuestoes() {
 
         <div className="flex flex-col lg:flex-row gap-8">
           
-          {/* Painel de Filtros (Lateral na web, Topo no mobile) */}
+          {/* Painel de Filtros */}
           <div className="w-full lg:w-1/4">
             <div className="bg-[#131c2f]/30 border border-white/5 p-6 rounded-2xl sticky top-6">
               <div className="flex items-center gap-2 mb-6 text-white">
@@ -63,35 +85,44 @@ export default function BancoDeQuestoes() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-zinc-400 uppercase mb-2">Banca</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ex: FGV, CEBRASPE"
+                  <select 
                     value={bancaSelecionada}
                     onChange={(e) => setBancaSelecionada(e.target.value)}
-                    className="w-full bg-[#09090b] border border-white/10 rounded-lg px-4 py-3 text-sm focus:border-emerald-500 focus:outline-none transition-colors"
-                  />
+                    className="w-full bg-[#09090b] border border-white/10 rounded-lg px-4 py-3 text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none transition-colors appearance-none cursor-pointer"
+                  >
+                    <option value="">Todas as Bancas</option>
+                    {opcoes.bancas.map(banca => (
+                      <option key={banca} value={banca}>{banca}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-zinc-400 uppercase mb-2">Matéria</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ex: Direito Administrativo"
+                  <select 
                     value={materiaSelecionada}
                     onChange={(e) => setMateriaSelecionada(e.target.value)}
-                    className="w-full bg-[#09090b] border border-white/10 rounded-lg px-4 py-3 text-sm focus:border-emerald-500 focus:outline-none transition-colors"
-                  />
+                    className="w-full bg-[#09090b] border border-white/10 rounded-lg px-4 py-3 text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none transition-colors appearance-none cursor-pointer"
+                  >
+                    <option value="">Todas as Matérias</option>
+                    {opcoes.materias.map(materia => (
+                      <option key={materia} value={materia}>{materia}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-zinc-400 uppercase mb-2">Ano</label>
-                  <input 
-                    type="number" 
-                    placeholder="Ex: 2024"
+                  <select 
                     value={anoSelecionado}
                     onChange={(e) => setAnoSelecionado(e.target.value)}
-                    className="w-full bg-[#09090b] border border-white/10 rounded-lg px-4 py-3 text-sm focus:border-emerald-500 focus:outline-none transition-colors"
-                  />
+                    className="w-full bg-[#09090b] border border-white/10 rounded-lg px-4 py-3 text-sm text-zinc-200 focus:border-emerald-500 focus:outline-none transition-colors appearance-none cursor-pointer"
+                  >
+                    <option value="">Todos os Anos</option>
+                    {opcoes.anos.map(ano => (
+                      <option key={ano} value={ano}>{ano}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <button 
@@ -113,12 +144,13 @@ export default function BancoDeQuestoes() {
             ) : questoes.length > 0 ? (
               questoes.map((questao) => (
                 <div key={questao.id} className="bg-[#131c2f]/20 border border-white/5 p-6 md:p-8 rounded-3xl">
-                  {/* Cabeçalho da Questão */}
+                  
+                  {/* Cabeçalho da Questão - Corrigido para ocultar tags vazias */}
                   <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-6">
-                    <span className="bg-white/5 px-3 py-1 rounded-md">{questao.ano}</span>
-                    <span className="bg-white/5 px-3 py-1 rounded-md">{questao.banca}</span>
-                    <span className="bg-white/5 px-3 py-1 rounded-md">{questao.orgao}</span>
-                    <span className="bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-md">{questao.materia}</span>
+                    {questao.ano && <span className="bg-white/5 px-3 py-1 rounded-md">{questao.ano}</span>}
+                    {questao.banca && <span className="bg-white/5 px-3 py-1 rounded-md">{questao.banca}</span>}
+                    {questao.orgao && <span className="bg-white/5 px-3 py-1 rounded-md">{questao.orgao}</span>}
+                    {questao.materia && <span className="bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-md">{questao.materia}</span>}
                   </div>
 
                   {/* Enunciado */}
@@ -126,11 +158,11 @@ export default function BancoDeQuestoes() {
                     {questao.enunciado}
                   </div>
 
-                  {/* Alternativas (Esqueleto visual) */}
+                  {/* Alternativas */}
                   <div className="space-y-3">
                     {['a', 'b', 'c', 'd', 'e'].map((letra) => {
                       const alternativa = questao[`alternativa_${letra}`];
-                      if (!alternativa) return null; // Não renderiza se a alternativa não existir no banco
+                      if (!alternativa) return null;
 
                       return (
                         <button 
