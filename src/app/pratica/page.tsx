@@ -94,11 +94,11 @@ export default function BancoDeQuestoes() {
         setDadosBase(data);
         setOpcoes(prev => ({
           ...prev,
-          bancas: [...new Set(data.map(q => q.banca).filter(Boolean))].sort() as string[], 
-          materias: [...new Set(data.map(q => q.materia).filter(Boolean))].sort() as string[], 
+          bancas: [...new Set(data.map(q => q.banca?.trim()).filter(Boolean))].sort() as string[], 
+          materias: [...new Set(data.map(q => q.materia?.trim()).filter(Boolean))].sort() as string[], 
           anos: [...new Set(data.map(q => q.ano).filter(Boolean))].sort((a, b) => b - a) as number[],
-          cargos: [...new Set(data.map(q => q.cargo).filter(Boolean))].sort() as string[],
-          formatos: [...new Set(data.map(q => q.tipo_questao).filter(Boolean))].sort() as string[]
+          cargos: [...new Set(data.map(q => q.cargo?.trim()).filter(Boolean))].sort() as string[],
+          formatos: [...new Set(data.map(q => q.tipo_questao?.trim()).filter(Boolean))].sort() as string[]
         }));
       }
     }
@@ -109,17 +109,17 @@ export default function BancoDeQuestoes() {
   useEffect(() => {
     if (materiaSelecionada) {
       const topicosDaMateria = dadosBase
-        .filter(q => q.materia === materiaSelecionada)
-        .map(q => q.topico)
+        .filter(q => q.materia?.trim() === materiaSelecionada)
+        .map(q => q.topico?.trim())
         .filter(Boolean);
       
       setOpcoes(prev => ({ ...prev, topicos: [...new Set(topicosDaMateria)].sort() as string[] }));
     } else {
-      setTopicoSelecionado(''); // Limpa o tópico se o aluno apagar a matéria
+      setTopicoSelecionado(''); 
       setOpcoes(prev => ({ ...prev, topicos: [] }));
     }
   }, [materiaSelecionada, dadosBase]);
-
+  
   const buscarQuestoes = async () => {
     setLoading(true);
     try {
