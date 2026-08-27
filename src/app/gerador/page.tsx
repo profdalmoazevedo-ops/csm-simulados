@@ -2,35 +2,62 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Filter, Sliders, Loader2, Zap } from 'lucide-react';
+import { Filter, Sliders, Loader2, Zap, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-// Reaproveitamos o componente de busca limpo
-const DropdownBuscavel = ({ label, placeholder, opcoes, valor, setValor, disabled = false }: { label: string, placeholder: string, opcoes: any[], valor: string, setValor: (v: string) => void, disabled?: boolean }) => {
+const MultiSelectBuscavel = ({ label, placeholder, opcoes, valores, setValores, disabled = false }: { label: string, placeholder: string, opcoes: any[], valores: string[], setValores: (v: string[]) => void, disabled?: boolean }) => {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState('');
-  
-  useEffect(() => { setBusca(valor); }, [valor]);
 
-  const opcoesFiltradas = opcoes.filter(op => String(op).toLowerCase().includes(busca.toLowerCase()));
+  const opcoesFiltradas = opcoes.filter(op => 
+    String(op).toLowerCase().includes(busca.toLowerCase()) && !valores.includes(String(op))
+  );
+
+  const removerValor = (valorParaRemover: string) => {
+    setValores(valores.filter(v => v !== valorParaRemover));
+  };
 
   return (
     <div className="relative">
       <label className={`block text-xs font-bold uppercase mb-2 ${disabled ? 'text-zinc-600' : 'text-zinc-400'}`}>{label}</label>
-      <input 
-        type="text" value={busca} disabled={disabled}
-        onChange={(e) => { setBusca(e.target.value); setAberto(true); if (e.target.value === '') setValor(''); }}
-        onFocus={() => setAberto(true)} onBlur={() => setTimeout(() => setAberto(false), 200)}
-        placeholder={disabled ? "Selecione uma matéria primeiro..." : placeholder}
-        className={`w-full bg-[#09090b] border rounded-lg px-4 py-3 text-sm transition-colors focus:outline-none ${
-          disabled ? 'border-white/5 text-zinc-600 cursor-not-allowed bg-black/20' : 'border-white/10 text-zinc-200 focus:border-blue-500'
-        }`}
-      />
+      
+      <div className={`w-full bg-[#09090b] border rounded-lg p-2 min-h-[50px] transition-colors flex flex-wrap gap-2 items-center ${
+        disabled ? 'border-white/5 bg-black/20 cursor-not-allowed' : 'border-white/10 focus-within:border-blue-500'
+      }`}>
+        {valores.map(v => (
+           <span key={v} className="bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs px-2 py-1.5 rounded-md flex items-center gap-1.5">
+             {v} 
+             <button type="button" onClick={() => removerValor(v)} className="hover:text-red-400 transition-colors">
+               <X className="w-3 h-3" />
+             </button>
+           </span>
+        ))}
+        
+        <input 
+          type="text"
+          value={busca}
+          disabled={disabled}
+          onChange={(e) => { setBusca(e.target.value); setAberto(true); }}
+          onFocus={() => setAberto(true)}
+          onBlur={() => setTimeout(() => setAberto(false), 200)}
+          placeholder={valores.length === 0 ? (disabled ? "Selecione uma matéria primeiro..." : placeholder) : ""}
+          className="flex-1 bg-transparent border-none text-sm text-zinc-200 focus:outline-none min-w-[120px] px-2 py-1"
+        />
+      </div>
+
       {aberto && !disabled && opcoesFiltradas.length > 0 && (
         <ul className="absolute z-10 w-full mt-1 bg-[#131c2f] border border-white/10 rounded-lg shadow-xl max-h-60 overflow-y-auto">
           {opcoesFiltradas.map((op) => (
-            <li key={op} onMouseDown={(e) => { e.preventDefault(); setValor(String(op)); setBusca(String(op)); setAberto(false); }}
-              className="px-4 py-3 text-sm text-zinc-300 hover:bg-blue-500/20 hover:text-blue-500 cursor-pointer transition-colors">
+            <li 
+              key={op}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setValores([...valores, String(op)]);
+                setBusca('');
+                setAberto(false);
+              }}
+              className="px-4 py-3 text-sm text-zinc-300 hover:bg-blue-500/20 hover:text-blue-500 cursor-pointer transition-colors"
+            >
               {op}
             </li>
           ))}
@@ -40,6 +67,19 @@ const DropdownBuscavel = ({ label, placeholder, opcoes, valor, setValor, disable
   );
 };
 
+// Funções de tradução do formato
+const traduzirFormatoParaExibicao = (val: string) => {
+  if (val === 'certo_errado') return 'Certo ou Errado';
+  if (val === 'multipla_escolha') return 'Múltipla Escolha';
+  return val;
+};
+
+const traduzirFormatoParaBanco = (val: string) => {
+  if (val === 'Certo ou Errado') return 'certo_errado';
+  if (val === 'Múltipla Escolha') return 'multipla_escolha';
+  return val;
+};
+
 export default function GeradorSimulados() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -47,15 +87,13 @@ export default function GeradorSimulados() {
   
   const [opcoes, setOpcoes] = useState({ bancas: [] as string[], materias: [] as string[], anos: [] as number[], cargos: [] as string[], formatos: [] as string[], topicos: [] as string[] });
 
-  // Filtros
-  const [bancaSelecionada, setBancaSelecionada] = useState('');
-  const [materiaSelecionada, setMateriaSelecionada] = useState('');
-  const [anoSelecionado, setAnoSelecionado] = useState('');
-  const [cargoSelecionado, setCargoSelecionado] = useState('');
-  const [formatoSelecionado, setFormatoSelecionado] = useState('');
-  const [topicoSelecionado, setTopicoSelecionado] = useState('');
+  const [bancasSelecionadas, setBancasSelecionadas] = useState<string[]>([]);
+  const [materiasSelecionadas, setMateriasSelecionadas] = useState<string[]>([]);
+  const [anosSelecionados, setAnosSelecionados] = useState<string[]>([]);
+  const [cargosSelecionados, setCargosSelecionados] = useState<string[]>([]);
+  const [formatosSelecionados, setFormatosSelecionados] = useState<string[]>([]);
+  const [topicosSelecionados, setTopicosSelecionados] = useState<string[]>([]);
   
-  // Configuração da Prova
   const [quantidadeQuestoes, setQuantidadeQuestoes] = useState(10);
 
   useEffect(() => {
@@ -63,13 +101,17 @@ export default function GeradorSimulados() {
       const { data, error } = await supabase.from('questoes').select('banca, materia, ano, cargo, topico, tipo_questao');
       if (data && !error) {
         setDadosBase(data);
+        
+        // Aplica a tradução na hora de montar a lista de opções de formato
+        const formatosTraduzidos = data.map(q => traduzirFormatoParaExibicao(q.tipo_questao?.trim())).filter(Boolean);
+
         setOpcoes(prev => ({
           ...prev,
           bancas: [...new Set(data.map(q => q.banca?.trim()).filter(Boolean))].sort() as string[], 
           materias: [...new Set(data.map(q => q.materia?.trim()).filter(Boolean))].sort() as string[], 
           anos: [...new Set(data.map(q => q.ano).filter(Boolean))].sort((a, b) => b - a) as number[],
           cargos: [...new Set(data.map(q => q.cargo?.trim()).filter(Boolean))].sort() as string[],
-          formatos: [...new Set(data.map(q => q.tipo_questao?.trim()).filter(Boolean))].sort() as string[]
+          formatos: [...new Set(formatosTraduzidos)].sort() as string[]
         }));
       }
     }
@@ -77,14 +119,18 @@ export default function GeradorSimulados() {
   }, []);
 
   useEffect(() => {
-    if (materiaSelecionada) {
-      const topicosDaMateria = dadosBase.filter(q => q.materia?.trim() === materiaSelecionada).map(q => q.topico?.trim()).filter(Boolean);
-      setOpcoes(prev => ({ ...prev, topicos: [...new Set(topicosDaMateria)].sort() as string[] }));
+    if (materiasSelecionadas.length > 0) {
+      const topicosDasMaterias = dadosBase
+        .filter(q => materiasSelecionadas.includes(q.materia?.trim()))
+        .map(q => q.topico?.trim())
+        .filter(Boolean);
+      
+      setOpcoes(prev => ({ ...prev, topicos: [...new Set(topicosDasMaterias)].sort() as string[] }));
     } else {
-      setTopicoSelecionado(''); 
+      setTopicosSelecionados([]); 
       setOpcoes(prev => ({ ...prev, topicos: [] }));
     }
-  }, [materiaSelecionada, dadosBase]);
+  }, [materiasSelecionadas, dadosBase]);
 
   const gerarSimulado = async () => {
     setLoading(true);
@@ -96,14 +142,19 @@ export default function GeradorSimulados() {
         return;
       }
 
-      // 1. Busca todas as questões que batem com o filtro
       let query = supabase.from('questoes').select('id');
-      if (bancaSelecionada) query = query.eq('banca', bancaSelecionada);
-      if (materiaSelecionada) query = query.eq('materia', materiaSelecionada);
-      if (anoSelecionado) query = query.eq('ano', parseInt(anoSelecionado));
-      if (cargoSelecionado) query = query.eq('cargo', cargoSelecionado);
-      if (topicoSelecionado) query = query.eq('topico', topicoSelecionado);
-      if (formatoSelecionado) query = query.eq('tipo_questao', formatoSelecionado);
+      
+      if (bancasSelecionadas.length > 0) query = query.in('banca', bancasSelecionadas);
+      if (materiasSelecionadas.length > 0) query = query.in('materia', materiasSelecionadas);
+      if (anosSelecionados.length > 0) query = query.in('ano', anosSelecionados);
+      if (cargosSelecionados.length > 0) query = query.in('cargo', cargosSelecionados);
+      if (topicosSelecionados.length > 0) query = query.in('topico', topicosSelecionados);
+      
+      // Traduz os formatos de volta para o padrão do banco antes de consultar
+      if (formatosSelecionados.length > 0) {
+        const formatosParaBanco = formatosSelecionados.map(traduzirFormatoParaBanco);
+        query = query.in('tipo_questao', formatosParaBanco);
+      }
 
       const { data: questoesEncontradas, error: erroBusca } = await query;
 
@@ -115,12 +166,14 @@ export default function GeradorSimulados() {
         return;
       }
 
-      // 2. Embaralha e corta na quantidade desejada
       const selecionadas = questoesEncontradas
         .sort(() => Math.random() - 0.5)
         .slice(0, quantidadeQuestoes);
 
-      // 3. Cria o Simulado na tabela 'simulados'
+      // Regra Cebraspe: Ativa apenas se o único formato selecionado for "Certo ou Errado" (traduzido para banco)
+      const formatosParaBanco = formatosSelecionados.map(traduzirFormatoParaBanco);
+      const regraCebraspeAtiva = formatosParaBanco.length === 1 && formatosParaBanco.includes('certo_errado');
+
       const { data: novoSimulado, error: erroSimulado } = await supabase
         .from('simulados')
         .insert({
@@ -128,14 +181,13 @@ export default function GeradorSimulados() {
           tipo: 'gerado_aluno',
           criado_por: user.id,
           visivel: true,
-          regra_subtracao: formatoSelecionado === 'CERTO OU ERRADO' // Ativa regra Cebraspe automaticamente se for C/E
+          regra_subtracao: regraCebraspeAtiva
         })
         .select()
         .single();
 
       if (erroSimulado) throw erroSimulado;
 
-      // 4. Salva as questões sorteadas na tabela 'simulado_questoes'
       const insercoesQuestoes = selecionadas.map((q, index) => ({
         simulado_id: novoSimulado.id,
         questao_id: q.id,
@@ -146,7 +198,6 @@ export default function GeradorSimulados() {
       
       if (erroInsercao) throw erroInsercao;
 
-      // 5. Redireciona para a página da prova
       router.push(`/simulado/${novoSimulado.id}`);
 
     } catch (error) {
@@ -175,12 +226,18 @@ export default function GeradorSimulados() {
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <DropdownBuscavel label="Banca" placeholder="Ex: FGV" opcoes={opcoes.bancas} valor={bancaSelecionada} setValor={setBancaSelecionada} />
-              <DropdownBuscavel label="Cargo" placeholder="Ex: Analista" opcoes={opcoes.cargos} valor={cargoSelecionado} setValor={setCargoSelecionado} />
-              <DropdownBuscavel label="Matéria" placeholder="Ex: Direito Administrativo" opcoes={opcoes.materias} valor={materiaSelecionada} setValor={setMateriaSelecionada} />
-              <DropdownBuscavel label="Tópico" placeholder="Ex: Atos Administrativos" opcoes={opcoes.topicos} valor={topicoSelecionado} setValor={setTopicoSelecionado} disabled={!materiaSelecionada} />
-              <DropdownBuscavel label="Ano" placeholder="Ex: 2024" opcoes={opcoes.anos} valor={anoSelecionado} setValor={setAnoSelecionado} />
-              <DropdownBuscavel label="Formato" placeholder="Ex: Múltipla" opcoes={opcoes.formatos} valor={formatoSelecionado} setValor={setFormatoSelecionado} />
+              <MultiSelectBuscavel label="Banca" placeholder="Ex: FGV, VUNESP" opcoes={opcoes.bancas} valores={bancasSelecionadas} setValores={setBancasSelecionadas} />
+              <MultiSelectBuscavel label="Cargo" placeholder="Ex: Analista" opcoes={opcoes.cargos} valores={cargosSelecionados} setValores={setCargosSelecionados} />
+              
+              <div className="col-span-1 md:col-span-2 h-px bg-white/5 my-2"></div>
+              
+              <MultiSelectBuscavel label="Matérias" placeholder="Ex: Direito Administrativo" opcoes={opcoes.materias} valores={materiasSelecionadas} setValores={setMateriasSelecionadas} />
+              <MultiSelectBuscavel label="Tópicos" placeholder="Ex: Atos Administrativos" opcoes={opcoes.topicos} valores={topicosSelecionados} setValores={setTopicosSelecionados} disabled={materiasSelecionadas.length === 0} />
+              
+              <div className="col-span-1 md:col-span-2 h-px bg-white/5 my-2"></div>
+
+              <MultiSelectBuscavel label="Anos" placeholder="Ex: 2024, 2023" opcoes={opcoes.anos.map(String)} valores={anosSelecionados} setValores={setAnosSelecionados} />
+              <MultiSelectBuscavel label="Formatos" placeholder="Ex: Múltipla Escolha" opcoes={opcoes.formatos} valores={formatosSelecionados} setValores={setFormatosSelecionados} />
             </div>
           </div>
 
@@ -188,12 +245,12 @@ export default function GeradorSimulados() {
             <h3 className="font-bold text-white mb-6 border-b border-white/5 pb-4">Configuração Final</h3>
             <div>
               <label className="block text-xs font-bold text-zinc-400 uppercase mb-4">Quantidade de Questões</label>
-              <div className="flex gap-4">
+              <div className="flex flex-wrap gap-4">
                 {[10, 20, 30, 50, 100].map(num => (
                   <button
                     key={num}
                     onClick={() => setQuantidadeQuestoes(num)}
-                    className={`flex-1 py-4 rounded-xl font-black text-sm transition-all border ${
+                    className={`flex-1 py-4 rounded-xl font-black text-sm transition-all border min-w-[60px] ${
                       quantidadeQuestoes === num 
                         ? 'bg-blue-600 border-blue-500 text-white' 
                         : 'bg-[#09090b] border-white/10 text-zinc-400 hover:border-blue-500/50'
