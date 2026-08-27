@@ -119,7 +119,7 @@ export default function BancoDeQuestoes() {
       setOpcoes(prev => ({ ...prev, topicos: [] }));
     }
   }, [materiaSelecionada, dadosBase]);
-  
+
   const buscarQuestoes = async () => {
     setLoading(true);
     try {
@@ -250,9 +250,13 @@ export default function BancoDeQuestoes() {
                     </div>
 
                     <div className="space-y-3">
-                      {['a', 'b', 'c', 'd', 'e'].map((letra) => {
-                        const alternativaTexto = questao[`alternativa_${letra}`];
-                        if (!alternativaTexto) return null;
+                    {['a', 'b', 'c', 'd', 'e'].map((letra) => {
+  const alternativaTexto = questao[`alternativa_${letra}`];
+  
+  // Ignora se for vazio, se for o texto "null" ou se tiver apenas espaços
+  if (!alternativaTexto || String(alternativaTexto).trim().toLowerCase() === 'null' || String(alternativaTexto).trim() === '') {
+    return null;
+  }
 
                         let estiloBotao = "border-white/5 bg-[#09090b] hover:border-white/20 text-zinc-400";
                         let estiloLetra = "border-white/10 text-zinc-400";
