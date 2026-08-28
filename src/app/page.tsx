@@ -119,6 +119,22 @@ export default function Dashboard() {
             </div>
             <span className="text-xs uppercase tracking-widest text-zinc-400 font-bold">Taxa de Acerto</span>
           </div>
+          {/* Gráfico Visual (Barra de Progresso) */}
+            <div className="mt-6">
+              <div className="flex justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">
+                <span>Aproveitamento</span>
+                <span className="text-purple-400">{statsAluno.aproveitamento}%</span>
+              </div>
+              <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
+                <div 
+                  className="bg-purple-500 h-full rounded-full transition-all duration-1000 ease-out relative" 
+                  style={{ width: `${statsAluno.aproveitamento}%` }}
+                >
+                  <div className="absolute top-0 right-0 bottom-0 left-0 bg-gradient-to-r from-transparent to-white/20"></div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Informações da Plataforma & CTA */}
@@ -160,6 +176,5 @@ export default function Dashboard() {
         </div>
 
       </div>
-    </div>
   );
 }
