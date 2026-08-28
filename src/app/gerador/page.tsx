@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabase';
 import { Filter, Sliders, Loader2, Zap, X, Check, PenTool } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-// Componente ajustado para receber { label, value } e exibir a contagem
 const MultiSelectBuscavel = ({ label, placeholder, opcoes, valores, setValores, disabled = false }: { label: string, placeholder: string, opcoes: {label: string, value: string}[], valores: string[], setValores: (v: string[]) => void, disabled?: boolean }) => {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState('');
@@ -25,7 +24,6 @@ const MultiSelectBuscavel = ({ label, placeholder, opcoes, valores, setValores, 
       <div className={`w-full bg-[#09090b] border rounded-lg p-2 min-h-[50px] transition-colors flex flex-wrap gap-2 items-center ${
         disabled ? 'border-white/5 bg-black/20 cursor-not-allowed' : 'border-white/10 focus-within:border-blue-500'
       }`}>
-        {/* As tags mostram apenas o nome limpo (value), sem a contagem, para ficar elegante */}
         {valores.map(v => (
            <span key={v} className="bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs px-2 py-1.5 rounded-md flex items-center gap-1.5">
              {v} 
@@ -88,16 +86,6 @@ export default function GeradorSimulados() {
   const [dadosBase, setDadosBase] = useState<any[]>([]);
   const [questoesRespondidas, setQuestoesRespondidas] = useState<Set<string>>(new Set());
   
-  // O tipo agora é um array de objetos {label, value}
-  const [opcoes, setOpcoes] = useState({ 
-    bancas: [] as {label: string, value: string}[], 
-    materias: [] as {label: string, value: string}[], 
-    anos: [] as {label: string, value: string}[], 
-    cargos: [] as {label: string, value: string}[], 
-    formatos: [] as {label: string, value: string}[], 
-    topicos: [] as {label: string, value: string}[] 
-  });
-
   const [nomeSimulado, setNomeSimulado] = useState('');
   const [bancasSelecionadas, setBancasSelecionadas] = useState<string[]>([]);
   const [materiasSelecionadas, setMateriasSelecionadas] = useState<string[]>([]);
@@ -109,85 +97,86 @@ export default function GeradorSimulados() {
   const [quantidadeQuestoes, setQuantidadeQuestoes] = useState(10);
   const [incluirRespondidas, setIncluirRespondidas] = useState(false);
 
+  // Faz o download de tudo 1 única vez
   useEffect(() => {
     async function carregarBaseDeDados() {
       const { data: { user } } = await supabase.auth.getUser();
-      
       if (user) {
         const { data: respostas } = await supabase.from('respostas_alunos').select('questao_id').eq('aluno_id', user.id);
         if (respostas) setQuestoesRespondidas(new Set(respostas.map(r => r.questao_id)));
       }
 
       const { data, error } = await supabase.from('questoes').select('id, banca, materia, ano, cargo, topico, tipo_questao');
-      if (data && !error) {
-        setDadosBase(data);
-        
-        // Calcula a quantidade por Matéria
-        const countMaterias = data.reduce((acc, q) => {
-          const m = q.materia?.trim();
-          if (m) acc[m] = (acc[m] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>);
-
-        const formatosTraduzidos = data.map(q => traduzirFormatoParaExibicao(q.tipo_questao?.trim())).filter(Boolean);
-
-        setOpcoes(prev => ({
-          ...prev,
-          // Transforma as arrays simples em arrays de objetos {label, value}
-          bancas: [...new Set(data.map(q => q.banca?.trim()).filter(Boolean))].sort().map(v => ({label: String(v), value: String(v)})),
-          cargos: [...new Set(data.map(q => q.cargo?.trim()).filter(Boolean))].sort().map(v => ({label: String(v), value: String(v)})),
-          anos: [...new Set(data.map(q => q.ano).filter(Boolean))].sort((a, b) => b - a).map(v => ({label: String(v), value: String(v)})),
-          formatos: [...new Set(formatosTraduzidos)].sort().map(v => ({label: String(v), value: String(v)})),
-          
-          // Adiciona as contagens no label das matérias
-          materias: Object.keys(countMaterias).sort().map(m => ({ label: `${m} (${countMaterias[m]})`, value: m }))
-        }));
-      }
+      if (data && !error) setDadosBase(data);
     }
     carregarBaseDeDados();
   }, []);
 
-  // Calcula a quantidade por Tópico baseado na Matéria selecionada
-  useEffect(() => {
-    if (materiasSelecionadas.length > 0) {
-      const topicosDasMaterias = dadosBase.filter(q => materiasSelecionadas.includes(q.materia?.trim()));
-      
-      const countTopicos = topicosDasMaterias.reduce((acc, q) => {
-        const t = q.topico?.trim();
-        if (t) acc[t] = (acc[t] || 0) + 1;
+  // FILTRO EM CASCATA EM TEMPO REAL
+  const opcoes = useMemo(() => {
+    // Função interna que simula o cruzamento de filtros
+    const obterBaseFiltrada = (filtroIgnorado: string) => {
+      let pool = dadosBase;
+      if (!incluirRespondidas) pool = pool.filter(q => !questoesRespondidas.has(q.id));
+
+      if (filtroIgnorado !== 'bancas' && bancasSelecionadas.length > 0) pool = pool.filter(q => bancasSelecionadas.includes(q.banca?.trim()));
+      if (filtroIgnorado !== 'cargos' && cargosSelecionados.length > 0) pool = pool.filter(q => cargosSelecionados.includes(q.cargo?.trim()));
+      if (filtroIgnorado !== 'materias' && materiasSelecionadas.length > 0) pool = pool.filter(q => materiasSelecionadas.includes(q.materia?.trim()));
+      if (filtroIgnorado !== 'topicos' && topicosSelecionados.length > 0) pool = pool.filter(q => topicosSelecionados.includes(q.topico?.trim()));
+      if (filtroIgnorado !== 'anos' && anosSelecionados.length > 0) pool = pool.filter(q => anosSelecionados.includes(String(q.ano)));
+      if (filtroIgnorado !== 'formatos' && formatosSelecionados.length > 0) {
+        const f = formatosSelecionados.map(traduzirFormatoParaBanco);
+        pool = pool.filter(q => f.includes(q.tipo_questao?.trim()));
+      }
+      return pool;
+    };
+
+    // Conta os resultados disponíveis para desenhar os dropdowns
+    const gerarDropdown = (chave: string, pool: any[]) => {
+      const counts = pool.reduce((acc, q) => {
+        let rawVal = q[chave];
+        if (!rawVal) return acc;
+
+        let val = '';
+        if (chave === 'tipo_questao') val = traduzirFormatoParaExibicao(String(rawVal).trim());
+        else if (chave === 'ano') val = String(rawVal);
+        else val = String(rawVal).trim();
+
+        // Ignora valores nulos ou vazios para limpar o banco
+        if (val && val.toLowerCase() !== 'null') acc[val] = (acc[val] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
-      setOpcoes(prev => ({ 
-        ...prev, 
-        topicos: Object.keys(countTopicos).sort().map(t => ({ label: `${t} (${countTopicos[t]})`, value: t })) 
-      }));
-    } else {
-      setTopicosSelecionados([]); 
-      setOpcoes(prev => ({ ...prev, topicos: [] }));
-    }
-  }, [materiasSelecionadas, dadosBase]);
+      return Object.keys(counts)
+        .sort((a, b) => chave === 'ano' ? Number(b) - Number(a) : a.localeCompare(b))
+        .map(k => ({ label: `${k} (${counts[k]})`, value: k }));
+    };
 
+    return {
+      bancas: gerarDropdown('banca', obterBaseFiltrada('bancas')),
+      cargos: gerarDropdown('cargo', obterBaseFiltrada('cargos')),
+      materias: gerarDropdown('materia', obterBaseFiltrada('materias')),
+      topicos: materiasSelecionadas.length > 0 ? gerarDropdown('topico', obterBaseFiltrada('topicos')) : [],
+      anos: gerarDropdown('ano', obterBaseFiltrada('anos')),
+      formatos: gerarDropdown('tipo_questao', obterBaseFiltrada('formatos')),
+    };
+  }, [dadosBase, bancasSelecionadas, cargosSelecionados, materiasSelecionadas, topicosSelecionados, anosSelecionados, formatosSelecionados, incluirRespondidas, questoesRespondidas]);
+
+  // Total final de questões para o botão central
   const questoesDisponiveis = useMemo(() => {
-    let filtradas = dadosBase;
-
-    if (bancasSelecionadas.length > 0) filtradas = filtradas.filter(q => bancasSelecionadas.includes(q.banca?.trim()));
-    if (materiasSelecionadas.length > 0) filtradas = filtradas.filter(q => materiasSelecionadas.includes(q.materia?.trim()));
-    if (anosSelecionados.length > 0) filtradas = filtradas.filter(q => anosSelecionados.includes(String(q.ano)));
-    if (cargosSelecionados.length > 0) filtradas = filtradas.filter(q => cargosSelecionados.includes(q.cargo?.trim()));
-    if (topicosSelecionados.length > 0) filtradas = filtradas.filter(q => topicosSelecionados.includes(q.topico?.trim()));
-    
+    let pool = dadosBase;
+    if (!incluirRespondidas) pool = pool.filter(q => !questoesRespondidas.has(q.id));
+    if (bancasSelecionadas.length > 0) pool = pool.filter(q => bancasSelecionadas.includes(q.banca?.trim()));
+    if (cargosSelecionados.length > 0) pool = pool.filter(q => cargosSelecionados.includes(q.cargo?.trim()));
+    if (materiasSelecionadas.length > 0) pool = pool.filter(q => materiasSelecionadas.includes(q.materia?.trim()));
+    if (topicosSelecionados.length > 0) pool = pool.filter(q => topicosSelecionados.includes(q.topico?.trim()));
+    if (anosSelecionados.length > 0) pool = pool.filter(q => anosSelecionados.includes(String(q.ano)));
     if (formatosSelecionados.length > 0) {
-      const formatosParaBanco = formatosSelecionados.map(traduzirFormatoParaBanco);
-      filtradas = filtradas.filter(q => formatosParaBanco.includes(q.tipo_questao?.trim()));
+      const f = formatosSelecionados.map(traduzirFormatoParaBanco);
+      pool = pool.filter(q => f.includes(q.tipo_questao?.trim()));
     }
-
-    if (!incluirRespondidas) {
-      filtradas = filtradas.filter(q => !questoesRespondidas.has(q.id));
-    }
-
-    return filtradas.map(q => q.id);
-  }, [dadosBase, bancasSelecionadas, materiasSelecionadas, anosSelecionados, cargosSelecionados, topicosSelecionados, formatosSelecionados, incluirRespondidas, questoesRespondidas]);
+    return pool.map(q => q.id);
+  }, [dadosBase, bancasSelecionadas, cargosSelecionados, materiasSelecionadas, topicosSelecionados, anosSelecionados, formatosSelecionados, incluirRespondidas, questoesRespondidas]);
 
 
   const gerarSimulado = async () => {
@@ -196,12 +185,6 @@ export default function GeradorSimulados() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         alert("Você precisa estar logado para criar um simulado.");
-        setLoading(false);
-        return;
-      }
-
-      if (questoesDisponiveis.length === 0) {
-        alert("Nenhuma questão encontrada com esses filtros. Tente ampliar sua busca.");
         setLoading(false);
         return;
       }
@@ -257,7 +240,7 @@ export default function GeradorSimulados() {
         <div className="text-center mb-12">
           <Sliders className="w-12 h-12 text-blue-500 mx-auto mb-6" />
           <h1 className="text-4xl font-serif text-white italic mb-4 uppercase">Criar Simulado</h1>
-          <p className="text-zinc-400">Configure os parâmetros da sua prova. O sistema montará um simulado inédito para você.</p>
+          <p className="text-zinc-400">Configure os parâmetros da sua prova. O sistema montará um caderno inédito para você.</p>
         </div>
 
         <div className="bg-[#131c2f]/30 border border-white/5 p-8 md:p-12 rounded-3xl">
