@@ -2,15 +2,16 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Filter, Sliders, Loader2, Zap, X, Check } from 'lucide-react';
+import { Filter, Sliders, Loader2, Zap, X, Check, PenTool } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-const MultiSelectBuscavel = ({ label, placeholder, opcoes, valores, setValores, disabled = false }: { label: string, placeholder: string, opcoes: any[], valores: string[], setValores: (v: string[]) => void, disabled?: boolean }) => {
+// Componente ajustado para receber { label, value } e exibir a contagem
+const MultiSelectBuscavel = ({ label, placeholder, opcoes, valores, setValores, disabled = false }: { label: string, placeholder: string, opcoes: {label: string, value: string}[], valores: string[], setValores: (v: string[]) => void, disabled?: boolean }) => {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState('');
 
   const opcoesFiltradas = opcoes.filter(op => 
-    String(op).toLowerCase().includes(busca.toLowerCase()) && !valores.includes(String(op))
+    op.label.toLowerCase().includes(busca.toLowerCase()) && !valores.includes(op.value)
   );
 
   const removerValor = (valorParaRemover: string) => {
@@ -24,6 +25,7 @@ const MultiSelectBuscavel = ({ label, placeholder, opcoes, valores, setValores, 
       <div className={`w-full bg-[#09090b] border rounded-lg p-2 min-h-[50px] transition-colors flex flex-wrap gap-2 items-center ${
         disabled ? 'border-white/5 bg-black/20 cursor-not-allowed' : 'border-white/10 focus-within:border-blue-500'
       }`}>
+        {/* As tags mostram apenas o nome limpo (value), sem a contagem, para ficar elegante */}
         {valores.map(v => (
            <span key={v} className="bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs px-2 py-1.5 rounded-md flex items-center gap-1.5">
              {v} 
@@ -49,16 +51,16 @@ const MultiSelectBuscavel = ({ label, placeholder, opcoes, valores, setValores, 
         <ul className="absolute z-10 w-full mt-1 bg-[#131c2f] border border-white/10 rounded-lg shadow-xl max-h-60 overflow-y-auto">
           {opcoesFiltradas.map((op) => (
             <li 
-              key={op}
+              key={op.value}
               onMouseDown={(e) => {
                 e.preventDefault();
-                setValores([...valores, String(op)]);
+                setValores([...valores, op.value]);
                 setBusca('');
                 setAberto(false);
               }}
               className="px-4 py-3 text-sm text-zinc-300 hover:bg-blue-500/20 hover:text-blue-500 cursor-pointer transition-colors"
             >
-              {op}
+              {op.label}
             </li>
           ))}
         </ul>
@@ -83,12 +85,20 @@ export default function GeradorSimulados() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   
-  // Base de dados local para cálculos em tempo real
   const [dadosBase, setDadosBase] = useState<any[]>([]);
   const [questoesRespondidas, setQuestoesRespondidas] = useState<Set<string>>(new Set());
   
-  const [opcoes, setOpcoes] = useState({ bancas: [] as string[], materias: [] as string[], anos: [] as number[], cargos: [] as string[], formatos: [] as string[], topicos: [] as string[] });
+  // O tipo agora é um array de objetos {label, value}
+  const [opcoes, setOpcoes] = useState({ 
+    bancas: [] as {label: string, value: string}[], 
+    materias: [] as {label: string, value: string}[], 
+    anos: [] as {label: string, value: string}[], 
+    cargos: [] as {label: string, value: string}[], 
+    formatos: [] as {label: string, value: string}[], 
+    topicos: [] as {label: string, value: string}[] 
+  });
 
+  const [nomeSimulado, setNomeSimulado] = useState('');
   const [bancasSelecionadas, setBancasSelecionadas] = useState<string[]>([]);
   const [materiasSelecionadas, setMateriasSelecionadas] = useState<string[]>([]);
   const [anosSelecionados, setAnosSelecionados] = useState<string[]>([]);
@@ -97,61 +107,67 @@ export default function GeradorSimulados() {
   const [topicosSelecionados, setTopicosSelecionados] = useState<string[]>([]);
   
   const [quantidadeQuestoes, setQuantidadeQuestoes] = useState(10);
-  const [incluirRespondidas, setIncluirRespondidas] = useState(false); // Checkbox: por padrão, ignora as já feitas
+  const [incluirRespondidas, setIncluirRespondidas] = useState(false);
 
   useEffect(() => {
     async function carregarBaseDeDados() {
-      // 1. Pega usuário logado
       const { data: { user } } = await supabase.auth.getUser();
       
-      // 2. Se logado, puxa todas as IDs de questões que ele já respondeu
       if (user) {
-        const { data: respostas } = await supabase
-          .from('respostas_alunos')
-          .select('questao_id')
-          .eq('aluno_id', user.id);
-          
-        if (respostas) {
-          setQuestoesRespondidas(new Set(respostas.map(r => r.questao_id)));
-        }
+        const { data: respostas } = await supabase.from('respostas_alunos').select('questao_id').eq('aluno_id', user.id);
+        if (respostas) setQuestoesRespondidas(new Set(respostas.map(r => r.questao_id)));
       }
 
-      // 3. Puxa o "esqueleto" (sem texto) de todas as questões do banco
       const { data, error } = await supabase.from('questoes').select('id, banca, materia, ano, cargo, topico, tipo_questao');
       if (data && !error) {
         setDadosBase(data);
         
+        // Calcula a quantidade por Matéria
+        const countMaterias = data.reduce((acc, q) => {
+          const m = q.materia?.trim();
+          if (m) acc[m] = (acc[m] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+
         const formatosTraduzidos = data.map(q => traduzirFormatoParaExibicao(q.tipo_questao?.trim())).filter(Boolean);
 
         setOpcoes(prev => ({
           ...prev,
-          bancas: [...new Set(data.map(q => q.banca?.trim()).filter(Boolean))].sort() as string[], 
-          materias: [...new Set(data.map(q => q.materia?.trim()).filter(Boolean))].sort() as string[], 
-          anos: [...new Set(data.map(q => q.ano).filter(Boolean))].sort((a, b) => b - a) as number[],
-          cargos: [...new Set(data.map(q => q.cargo?.trim()).filter(Boolean))].sort() as string[],
-          formatos: [...new Set(formatosTraduzidos)].sort() as string[]
+          // Transforma as arrays simples em arrays de objetos {label, value}
+          bancas: [...new Set(data.map(q => q.banca?.trim()).filter(Boolean))].sort().map(v => ({label: String(v), value: String(v)})),
+          cargos: [...new Set(data.map(q => q.cargo?.trim()).filter(Boolean))].sort().map(v => ({label: String(v), value: String(v)})),
+          anos: [...new Set(data.map(q => q.ano).filter(Boolean))].sort((a, b) => b - a).map(v => ({label: String(v), value: String(v)})),
+          formatos: [...new Set(formatosTraduzidos)].sort().map(v => ({label: String(v), value: String(v)})),
+          
+          // Adiciona as contagens no label das matérias
+          materias: Object.keys(countMaterias).sort().map(m => ({ label: `${m} (${countMaterias[m]})`, value: m }))
         }));
       }
     }
     carregarBaseDeDados();
   }, []);
 
-  // Filtra as opções de tópicos de acordo com a matéria
+  // Calcula a quantidade por Tópico baseado na Matéria selecionada
   useEffect(() => {
     if (materiasSelecionadas.length > 0) {
-      const topicosDasMaterias = dadosBase
-        .filter(q => materiasSelecionadas.includes(q.materia?.trim()))
-        .map(q => q.topico?.trim())
-        .filter(Boolean);
+      const topicosDasMaterias = dadosBase.filter(q => materiasSelecionadas.includes(q.materia?.trim()));
       
-      setOpcoes(prev => ({ ...prev, topicos: [...new Set(topicosDasMaterias)].sort() as string[] }));
+      const countTopicos = topicosDasMaterias.reduce((acc, q) => {
+        const t = q.topico?.trim();
+        if (t) acc[t] = (acc[t] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      setOpcoes(prev => ({ 
+        ...prev, 
+        topicos: Object.keys(countTopicos).sort().map(t => ({ label: `${t} (${countTopicos[t]})`, value: t })) 
+      }));
     } else {
       setTopicosSelecionados([]); 
       setOpcoes(prev => ({ ...prev, topicos: [] }));
     }
   }, [materiasSelecionadas, dadosBase]);
 
-  // CALCULA EM TEMPO REAL QUANTAS QUESTÕES BATEM COM O FILTRO
   const questoesDisponiveis = useMemo(() => {
     let filtradas = dadosBase;
 
@@ -166,12 +182,11 @@ export default function GeradorSimulados() {
       filtradas = filtradas.filter(q => formatosParaBanco.includes(q.tipo_questao?.trim()));
     }
 
-    // Aplica a regra de exclusão das já respondidas
     if (!incluirRespondidas) {
       filtradas = filtradas.filter(q => !questoesRespondidas.has(q.id));
     }
 
-    return filtradas.map(q => q.id); // Retorna apenas as IDs disponíveis
+    return filtradas.map(q => q.id);
   }, [dadosBase, bancasSelecionadas, materiasSelecionadas, anosSelecionados, cargosSelecionados, topicosSelecionados, formatosSelecionados, incluirRespondidas, questoesRespondidas]);
 
 
@@ -191,20 +206,18 @@ export default function GeradorSimulados() {
         return;
       }
 
-      // Embaralha os IDs filtrados localmente e corta na quantidade desejada
-      // Se tiver menos questões do que o aluno pediu, ele usa o total disponível
       const quantidadeReal = Math.min(quantidadeQuestoes, questoesDisponiveis.length);
-      const selecionadas = questoesDisponiveis
-        .sort(() => Math.random() - 0.5)
-        .slice(0, quantidadeReal);
+      const selecionadas = questoesDisponiveis.sort(() => Math.random() - 0.5).slice(0, quantidadeReal);
 
       const formatosParaBanco = formatosSelecionados.map(traduzirFormatoParaBanco);
       const regraCebraspeAtiva = formatosParaBanco.length === 1 && formatosParaBanco.includes('certo_errado');
 
+      const tituloFinal = nomeSimulado.trim() || `Simulado Personalizado - ${new Date().toLocaleDateString('pt-BR')}`;
+
       const { data: novoSimulado, error: erroSimulado } = await supabase
         .from('simulados')
         .insert({
-          titulo: `Simulado Personalizado - ${new Date().toLocaleDateString('pt-BR')}`,
+          titulo: tituloFinal,
           tipo: 'gerado_aluno',
           criado_por: user.id,
           visivel: true,
@@ -219,7 +232,7 @@ export default function GeradorSimulados() {
 
       const insercoesQuestoes = selecionadas.map((id, index) => ({
         simulado_id: novoSimulado.id,
-        questao_id: id, // Passa direto o ID mapeado
+        questao_id: id,
         ordem: index + 1
       }));
 
@@ -244,82 +257,96 @@ export default function GeradorSimulados() {
         <div className="text-center mb-12">
           <Sliders className="w-12 h-12 text-blue-500 mx-auto mb-6" />
           <h1 className="text-4xl font-serif text-white italic mb-4 uppercase">Criar Simulado</h1>
-          <p className="text-zinc-400">Configure os parâmetros da sua prova. O sistema montará um caderno inédito para você.</p>
+          <p className="text-zinc-400">Configure os parâmetros da sua prova. O sistema montará um simulado inédito para você.</p>
         </div>
 
-        <div className="bg-[#131c2f]/30 border border-white/5 p-8 md:p-12 rounded-3xl space-y-10">
+        <div className="bg-[#131c2f]/30 border border-white/5 p-8 md:p-12 rounded-3xl">
           
-          <div>
-            <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/5 pb-4 mb-6 gap-4">
-              <h3 className="flex items-center gap-2 font-bold text-white">
-                <Filter className="w-5 h-5 text-blue-500" /> Direcionamento da Prova
-              </h3>
-              
-              {/* Badge Dinâmico em tempo real */}
-              <div className="bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-lg text-blue-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all">
-                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                {questoesDisponiveis.length} questões disponíveis
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <MultiSelectBuscavel label="Banca" placeholder="Ex: FGV, VUNESP" opcoes={opcoes.bancas} valores={bancasSelecionadas} setValores={setBancasSelecionadas} />
-              <MultiSelectBuscavel label="Cargo" placeholder="Ex: Analista" opcoes={opcoes.cargos} valores={cargosSelecionados} setValores={setCargosSelecionados} />
-              
-              <div className="col-span-1 md:col-span-2 h-px bg-white/5 my-2"></div>
-              
-              <MultiSelectBuscavel label="Matérias" placeholder="Ex: Direito Administrativo" opcoes={opcoes.materias} valores={materiasSelecionadas} setValores={setMateriasSelecionadas} />
-              <MultiSelectBuscavel label="Tópicos" placeholder="Ex: Atos Administrativos" opcoes={opcoes.topicos} valores={topicosSelecionados} setValores={setTopicosSelecionados} disabled={materiasSelecionadas.length === 0} />
-              
-              <div className="col-span-1 md:col-span-2 h-px bg-white/5 my-2"></div>
-
-              <MultiSelectBuscavel label="Anos" placeholder="Ex: 2024, 2023" opcoes={opcoes.anos.map(String)} valores={anosSelecionados} setValores={setAnosSelecionados} />
-              <MultiSelectBuscavel label="Formatos" placeholder="Ex: Múltipla Escolha" opcoes={opcoes.formatos} valores={formatosSelecionados} setValores={setFormatosSelecionados} />
-            </div>
+          <div className="mb-10">
+            <label className="flex items-center gap-2 text-xs font-bold text-zinc-400 uppercase mb-3">
+              <PenTool className="w-4 h-4" /> Nome do Simulado (Opcional)
+            </label>
+            <input 
+              type="text"
+              value={nomeSimulado}
+              onChange={(e) => setNomeSimulado(e.target.value)}
+              placeholder="Ex: Revisão Final FGV"
+              className="w-full bg-[#09090b] border border-white/10 rounded-lg px-4 py-4 text-sm text-white focus:border-blue-500 focus:outline-none transition-colors"
+            />
           </div>
 
-          <div>
-            <h3 className="font-bold text-white mb-6 border-b border-white/5 pb-4">Configuração Final</h3>
+          <div className="space-y-10">
             <div>
-              <label className="block text-xs font-bold text-zinc-400 uppercase mb-4">Quantidade de Questões</label>
-              <div className="flex flex-wrap gap-4">
-                {[10, 20, 30, 50, 100].map(num => (
-                  <button
-                    key={num}
-                    onClick={() => setQuantidadeQuestoes(num)}
-                    className={`flex-1 py-4 rounded-xl font-black text-sm transition-all border min-w-[60px] ${
-                      quantidadeQuestoes === num 
-                        ? 'bg-blue-600 border-blue-500 text-white' 
-                        : 'bg-[#09090b] border-white/10 text-zinc-400 hover:border-blue-500/50'
-                    }`}
-                  >
-                    {num}
-                  </button>
-                ))}
-              </div>
-
-              {/* Checkbox Inéditas vs Repetidas */}
-              <label className="flex items-center gap-3 cursor-pointer mt-8 w-fit group">
-                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                  incluirRespondidas ? 'bg-blue-600 border-blue-500' : 'bg-[#09090b] border-white/10 group-hover:border-blue-500/50'
-                }`}>
-                  {incluirRespondidas && <Check className="w-3 h-3 text-white" />}
+              <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/5 pb-4 mb-6 gap-4">
+                <h3 className="flex items-center gap-2 font-bold text-white">
+                  <Filter className="w-5 h-5 text-blue-500" /> Direcionamento da Prova
+                </h3>
+                
+                <div className="bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-lg text-blue-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                  {questoesDisponiveis.length} questões disponíveis
                 </div>
-                <span className="text-sm text-zinc-400 group-hover:text-zinc-200 transition-colors">
-                  Incluir questões que eu já respondi
-                </span>
-              </label>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <MultiSelectBuscavel label="Banca" placeholder="Ex: FGV, VUNESP" opcoes={opcoes.bancas} valores={bancasSelecionadas} setValores={setBancasSelecionadas} />
+                <MultiSelectBuscavel label="Cargo" placeholder="Ex: Analista" opcoes={opcoes.cargos} valores={cargosSelecionados} setValores={setCargosSelecionados} />
+                
+                <div className="col-span-1 md:col-span-2 h-px bg-white/5 my-2"></div>
+                
+                <MultiSelectBuscavel label="Matérias" placeholder="Ex: Direito Administrativo" opcoes={opcoes.materias} valores={materiasSelecionadas} setValores={setMateriasSelecionadas} />
+                <MultiSelectBuscavel label="Tópicos" placeholder="Ex: Atos Administrativos" opcoes={opcoes.topicos} valores={topicosSelecionados} setValores={setTopicosSelecionados} disabled={materiasSelecionadas.length === 0} />
+                
+                <div className="col-span-1 md:col-span-2 h-px bg-white/5 my-2"></div>
 
+                <MultiSelectBuscavel label="Anos" placeholder="Ex: 2024, 2023" opcoes={opcoes.anos} valores={anosSelecionados} setValores={setAnosSelecionados} />
+                <MultiSelectBuscavel label="Formatos" placeholder="Ex: Múltipla Escolha" opcoes={opcoes.formatos} valores={formatosSelecionados} setValores={setFormatosSelecionados} />
+              </div>
             </div>
-          </div>
 
-          <button 
-            onClick={gerarSimulado}
-            disabled={loading || questoesDisponiveis.length === 0}
-            className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-white font-black uppercase text-sm tracking-widest py-6 rounded-2xl flex items-center justify-center gap-3 transition-colors mt-8 shadow-xl shadow-blue-900/20"
-          >
-            {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Zap className="w-6 h-6" /> Gerar Prova e Começar</>}
-          </button>
+            <div>
+              <h3 className="font-bold text-white mb-6 border-b border-white/5 pb-4">Configuração Final</h3>
+              <div>
+                <label className="block text-xs font-bold text-zinc-400 uppercase mb-4">Quantidade de Questões</label>
+                <div className="flex flex-wrap gap-4">
+                  {[10, 20, 30, 50, 100].map(num => (
+                    <button
+                      key={num}
+                      onClick={() => setQuantidadeQuestoes(num)}
+                      className={`flex-1 py-4 rounded-xl font-black text-sm transition-all border min-w-[60px] ${
+                        quantidadeQuestoes === num 
+                          ? 'bg-blue-600 border-blue-500 text-white' 
+                          : 'bg-[#09090b] border-white/10 text-zinc-400 hover:border-blue-500/50'
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+
+                <label className="flex items-center gap-3 cursor-pointer mt-8 w-fit group">
+                  <input 
+                    type="checkbox"
+                    checked={incluirRespondidas}
+                    onChange={(e) => setIncluirRespondidas(e.target.checked)}
+                    className="w-5 h-5 rounded border border-white/10 bg-[#09090b] text-blue-600 focus:ring-blue-500 focus:ring-offset-[#09090b] accent-blue-600 cursor-pointer"
+                  />
+                  <span className="text-sm text-zinc-400 group-hover:text-zinc-200 transition-colors">
+                    Incluir questões que eu já respondi
+                  </span>
+                </label>
+
+              </div>
+            </div>
+
+            <button 
+              onClick={gerarSimulado}
+              disabled={loading || questoesDisponiveis.length === 0}
+              className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-white font-black uppercase text-sm tracking-widest py-6 rounded-2xl flex items-center justify-center gap-3 transition-colors mt-8 shadow-xl shadow-blue-900/20"
+            >
+              {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Zap className="w-6 h-6" /> Gerar Prova e Começar</>}
+            </button>
+          </div>
           
         </div>
       </div>
