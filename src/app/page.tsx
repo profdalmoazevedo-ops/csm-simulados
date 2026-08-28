@@ -25,11 +25,9 @@ export default function Dashboard() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          // Extrai o primeiro nome do email ou dos metadados caso existam
           const nome = user.user_metadata?.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'Aluno';
           setNomeAluno(nome.charAt(0).toUpperCase() + nome.slice(1));
 
-          // Busca histórico do aluno
           const { data: respostas } = await supabase
             .from('respostas_alunos')
             .select('foi_correta')
@@ -48,7 +46,6 @@ export default function Dashboard() {
           }
         }
 
-        // Busca dados gerais da plataforma (usando head: true para não baixar os dados, apenas contar)
         const { count: countQuestoes } = await supabase
           .from('questoes')
           .select('*', { count: 'exact', head: true });
@@ -110,17 +107,20 @@ export default function Dashboard() {
             <span className="text-xs uppercase tracking-widest text-zinc-400 font-bold">Respostas Certas</span>
           </div>
 
-          <div className="bg-[#131c2f]/30 border border-purple-500/20 p-8 rounded-3xl relative overflow-hidden group hover:border-purple-500/50 transition-colors">
+          <div className="bg-[#131c2f]/30 border border-purple-500/20 p-8 rounded-3xl relative overflow-hidden group hover:border-purple-500/50 transition-colors flex flex-col justify-between">
             <div className="absolute -right-6 -top-6 w-32 h-32 bg-purple-500/5 rounded-full group-hover:scale-110 transition-transform blur-2xl"></div>
-            <TrendingUp className="w-8 h-8 text-purple-500 mb-6" />
-            <div className="flex items-baseline gap-1 mb-2">
-              <span className="block text-4xl font-black text-white">{statsAluno.aproveitamento}</span>
-              <span className="text-xl text-zinc-500 font-bold">%</span>
+            
+            <div>
+              <TrendingUp className="w-8 h-8 text-purple-500 mb-6" />
+              <div className="flex items-baseline gap-1 mb-2">
+                <span className="block text-4xl font-black text-white">{statsAluno.aproveitamento}</span>
+                <span className="text-xl text-zinc-500 font-bold">%</span>
+              </div>
+              <span className="text-xs uppercase tracking-widest text-zinc-400 font-bold">Taxa de Acerto</span>
             </div>
-            <span className="text-xs uppercase tracking-widest text-zinc-400 font-bold">Taxa de Acerto</span>
-          </div>
-          {/* Gráfico Visual (Barra de Progresso) */}
-            <div className="mt-6">
+
+            {/* Gráfico Visual (Barra de Progresso) */}
+            <div className="mt-6 z-10 relative">
               <div className="flex justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">
                 <span>Aproveitamento</span>
                 <span className="text-purple-400">{statsAluno.aproveitamento}%</span>
@@ -137,7 +137,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Informações da Plataforma & CTA */}
+        {/* Informações da Plataforma */}
         <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-500 mb-6">Raio-X da Plataforma</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           
@@ -176,5 +176,6 @@ export default function Dashboard() {
         </div>
 
       </div>
+    </div>
   );
 }
