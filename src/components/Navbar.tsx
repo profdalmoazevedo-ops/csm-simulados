@@ -14,6 +14,8 @@ import {
   Settings, 
   LogOut, 
   Menu, 
+  LayoutDashboard,
+  User,
   X 
 } from 'lucide-react';
 
@@ -52,13 +54,12 @@ export default function Navbar() {
     return null;
   }
 
-  const menuItems = [
-    { name: 'Início', href: '/', icon: Home },
-    { name: 'Banco', href: '/pratica', icon: Database },
-    { name: 'Gerador', href: '/gerador', icon: Sliders },
-    { name: 'Temáticos', href: '/simulados', icon: BookOpen },
-    { name: 'Suporte', href: '/suporte', icon: Headset },
-  ];
+ const menuItems = [
+  { name: 'Início', href: '/', icon: Home },
+  { name: 'Central do Aluno', href: '/central', icon: LayoutDashboard },
+  { name: 'Suporte', href: '/suporte', icon: Headset },
+  { name: 'Perfil', href: '/perfil', icon: User },
+];
 
   return (
     <nav className="sticky top-0 z-50 bg-[#09090b]/90 backdrop-blur-md border-b border-white/10">
