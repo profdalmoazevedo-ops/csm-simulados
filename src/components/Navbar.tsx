@@ -34,7 +34,7 @@ export default function Navbar() {
       if (user) {
         setUserEmail(user.email ?? null);
         // Substitua pelo seu e-mail de administrador real
-        if (user.email === 'seu_email@profdalmoazevedo.com.br') {
+        if (user.email === 'profdalmoazevedo@gmail.com') {
           setIsAdmin(true);
         }
       }
