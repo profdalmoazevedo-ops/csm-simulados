@@ -153,7 +153,7 @@ export default function BancoDeQuestoesAdmin() {
             </button>
 
             <Link 
-              href="/admin/nova" 
+              href="/admin/questoes/nova" 
               className="bg-emerald-600 hover:bg-emerald-500 text-black font-black py-3 px-6 rounded-xl transition-all flex items-center gap-2 text-xs uppercase tracking-widest"
             >
               <Plus className="w-4 h-4" /> Nova Questão
@@ -229,7 +229,7 @@ export default function BancoDeQuestoesAdmin() {
                       <td className="px-6 py-4 align-top w-1/4 text-right">
                         <div className="flex justify-end gap-2">
                           <Link 
-                            href={`/admin/editar/${questao.id}`}
+                            href={`/admin/questoes/editar/${questao.id}`}
                             className="p-2 text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors inline-block" 
                             title="Editar Questão"
                           >
