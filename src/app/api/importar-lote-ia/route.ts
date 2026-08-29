@@ -54,6 +54,8 @@ export async function POST(req: Request) {
 
     try {
       const geminiApiKey = process.env.GEMINI_API_KEY;
+      if (!geminiApiKey) throw new Error("A variável GEMINI_API_KEY não foi encontrada no servidor.");
+
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiApiKey}`;
 
       const geminiResponse = await fetch(geminiUrl, {
@@ -81,7 +83,7 @@ export async function POST(req: Request) {
 
       if (!geminiResponse.ok) {
          const errText = await geminiResponse.text();
-         throw new Error(`Falha Gemini: ${errText}`);
+         throw new Error(`Google rejeitou a chamada (Status ${geminiResponse.status}): ${errText}`);
       }
       
       const geminiData = await geminiResponse.json();
@@ -93,10 +95,13 @@ export async function POST(req: Request) {
 
       textoIAResposta = candidate.content.parts[0].text;
 
-    } catch (erroGemini) {
-      console.warn("Acionando Groq:", erroGemini);
+    } catch (erroGemini: any) {
+      console.warn("Acionando Groq:", erroGemini.message);
       const groqApiKey = process.env.GROQ_API_KEY;
-      if (!groqApiKey) throw new Error("Groq não configurada.");
+      
+      if (!groqApiKey) {
+        throw new Error(`Falha Gemini: ${erroGemini.message} | GROQ_API_KEY ausente.`);
+      }
       
       const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -112,7 +117,11 @@ export async function POST(req: Request) {
         })
       });
 
-      if (!groqResponse.ok) throw new Error("Falha Groq");
+      if (!groqResponse.ok) {
+        const erroRealGroq = await groqResponse.text();
+        throw new Error(`Gemini erro: [${erroGemini.message}] // Groq erro: [${erroRealGroq}]`);
+      }
+      
       const groqData = await groqResponse.json();
       textoIAResposta = groqData.choices[0].message.content;
     }
