@@ -2,14 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { supabase } from "@/lib/supabase";
-import { ArrowLeft, Save, FileText, ListChecks, Search, Plus, Trash2, BookOpen, ChevronDown, ChevronUp, Sparkles, Filter, EyeOff } from 'lucide-react';
+import { 
+  ArrowLeft, Save, FileText, ListChecks, Search, 
+  Plus, Trash2, BookOpen, ChevronDown, ChevronUp, 
+  Filter, EyeOff 
+} from 'lucide-react';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
-import { marked } from 'marked';
-
-// Importamos o editor dinamicamente para não dar erro no Next.js (SSR)
-const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
-import 'react-quill-new/dist/quill.snow.css';
 
 export default function EditarSimuladoAdmin() {
   const router = useRouter();
@@ -19,7 +17,7 @@ export default function EditarSimuladoAdmin() {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
-  const [abaAtiva, setAbaAtiva] = useState<'config' | 'questoes' | 'caderno'>('questoes');
+  const [abaAtiva, setAbaAtiva] = useState<'questoes' | 'config'>('questoes');
 
   // Estados das Questões e Buscas
   const [questoesVinculadas, setQuestoesVinculadas] = useState<any[]>([]);
@@ -27,7 +25,7 @@ export default function EditarSimuladoAdmin() {
   const [resultadosBusca, setResultadosBusca] = useState<any[]>([]);
   const [buscando, setBuscando] = useState(false);
   
-  // NOVO ESTADO: Armazena IDs que o professor pediu para esconder na sessão atual
+  // Estado: Armazena IDs que o professor pediu para esconder na sessão atual
   const [idsIgnoradosSessao, setIdsIgnoradosSessao] = useState<string[]>([]);
   
   // Estados para o Dropdown Inteligente
@@ -37,52 +35,13 @@ export default function EditarSimuladoAdmin() {
   // Controle de Expansão do Enunciado
   const [questaoExpandidaId, setQuestaoExpandidaId] = useState<string | null>(null);
 
-  // ESTADO ATUALIZADO: Inclui ciclo_numero e ciclo_nome
+  // Estado Atualizado: Apenas as configurações essenciais
   const [formData, setFormData] = useState({
     titulo: '',
     disciplina_foco: '',
-    ciclo_numero: 1,
-    ciclo_nome: '',
-    numero_semana: 1,
-    tipo: 'ciclo',
     visivel: false,
-    e_gratis: false,
     regra_subtracao: false,
-    data_liberacao: '',
-    data_liberacao_mentoria: '',
-    data_liberacao_caderno: '',
-    pdf_url: '',
-    url_mentoria_cirurgica: '',
-    url_caderno_sobrevivencia: ''
   });
-
-  const [conteudoCaderno, setConteudoCaderno] = useState("");
-  const [salvandoPdf, setSalvandoPdf] = useState(false);
-
-  async function salvarConteudoCaderno() {
-    if (!conteudoCaderno) return alert("O caderno está vazio!");
-    setSalvandoPdf(true);
-
-    try {
-      const { data, error: updateError } = await supabase
-        .from('simulados')
-        .update({ conteudo_caderno: conteudoCaderno })
-        .eq('id', idSimulado)
-        .select(); 
-
-      if (updateError) throw updateError;
-      
-      if (!data || data.length === 0) {
-        throw new Error("Aviso de Segurança: O banco de dados recusou a gravação. Verifique as Políticas (RLS) de UPDATE na tabela 'simulados'.");
-      }
-
-      alert("🎉 Caderno salvo com sucesso!");
-    } catch (err: any) {
-      alert("Erro ao salvar: " + err.message);
-    } finally {
-      setSalvandoPdf(false);
-    }
-  }
 
   useEffect(() => {
     if (!idSimulado) return;
@@ -117,24 +76,11 @@ export default function EditarSimuladoAdmin() {
         setFormData({
           titulo: simData.titulo || '',
           disciplina_foco: simData.disciplina_foco || '',
-          ciclo_numero: simData.ciclo_numero || 1, 
-          ciclo_nome: simData.ciclo_nome || '',  
-          numero_semana: simData.numero_semana || 1,
-          tipo: simData.tipo || 'ciclo',
           visivel: simData.visivel || false,
-          e_gratis: simData.e_gratis || false,
           regra_subtracao: simData.regra_subtracao || false,
-          data_liberacao: simData.data_liberacao ? simData.data_liberacao.slice(0, 16) : '',
-          data_liberacao_mentoria: simData.data_liberacao_mentoria ? simData.data_liberacao_mentoria.slice(0, 16) : '',
-          data_liberacao_caderno: simData.data_liberacao_caderno ? simData.data_liberacao_caderno.slice(0, 16) : '',
-          pdf_url: simData.pdf_url || '',
-          url_mentoria_cirurgica: simData.url_mentoria_cirurgica || '',
-          url_caderno_sobrevivencia: simData.url_caderno_sobrevivencia || ''
         });
-        setConteudoCaderno(simData.conteudo_caderno || "");
       }
 
-      // Adicionando orgao e cargo ao select de Questoes
       const { data: vinculadas, error: vincError } = await supabase
         .from('simulado_questoes')
         .select(`
@@ -149,7 +95,7 @@ export default function EditarSimuladoAdmin() {
       if (vincError) throw vincError;
       setQuestoesVinculadas(vinculadas || []);
     } catch (err: any) {
-      setErro("Falha ao aceder aos dados do simulado.");
+      setErro("Falha ao carregar os dados do simulado.");
     } finally {
       setLoading(false);
     }
@@ -170,7 +116,6 @@ export default function EditarSimuladoAdmin() {
       idsParaIgnorar = [...idsParaIgnorar, ...idsJaVinculadasAqui, ...idsIgnoradosSessao];
       idsParaIgnorar = Array.from(new Set(idsParaIgnorar));
 
-      // Selecionando os novos campos na busca
       let query = supabase
         .from('questoes')
         .select('id, banca, orgao, cargo, ano, materia, topico, enunciado, tipo_questao');
@@ -191,10 +136,7 @@ export default function EditarSimuladoAdmin() {
         .order('criado_em', { ascending: false }) 
         .limit(25);
       
-      if (error) {
-        console.error("Erro específico do Supabase:", error);
-        throw error;
-      }
+      if (error) throw error;
       
       setResultadosBusca(data || []);
     } catch (err) {
@@ -243,22 +185,28 @@ export default function EditarSimuladoAdmin() {
     }
   }
 
-  const handleChangeConfig = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target as any;
-    if (type === 'checkbox') setFormData(prev => ({ ...prev, [name]: (e.target as HTMLInputElement).checked }));
-    else setFormData(prev => ({ ...prev, [name]: value }));
+  const handleChangeConfig = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({ 
+      ...prev, 
+      [name]: type === 'checkbox' ? checked : value 
+    }));
   };
 
   const handleSalvarConfiguracoes = async (e: React.FormEvent) => {
     e.preventDefault();
     setSalvando(true);
     try {
-      await supabase.from('simulados').update({
-        ...formData,
-        ciclo_numero: Number(formData.ciclo_numero), 
-        numero_semana: Number(formData.numero_semana) 
-      }).eq('id', idSimulado);
-      alert("Configurações atualizadas!");
+      const { error } = await supabase
+        .from('simulados')
+        .update(formData)
+        .eq('id', idSimulado);
+        
+      if (error) throw error;
+      alert("Configurações atualizadas com sucesso!");
+    } catch (error) {
+      alert("Erro ao salvar configurações.");
+      console.error(error);
     } finally {
       setSalvando(false);
     }
@@ -302,14 +250,6 @@ export default function EditarSimuladoAdmin() {
         >
           <FileText className="w-4 h-4" /> Configurações
         </button>
-        <button 
-          onClick={() => setAbaAtiva('caderno')}
-          className={`px-6 py-4 font-bold text-[10px] uppercase tracking-widest flex items-center gap-2 border-b-2 transition-all ${
-            abaAtiva === 'caderno' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
-          }`}
-        >
-          <BookOpen className="w-4 h-4" /> Caderno de Aprofundamento
-        </button>
       </div>
 
       {/* CONTEÚDO: ABA DE QUESTÕES */}
@@ -340,7 +280,6 @@ export default function EditarSimuladoAdmin() {
                             {qv.questoes?.banca} {qv.questoes?.ano ? `- ${qv.questoes.ano}` : ''}
                           </span>
                           
-                          {/* 🚀 Renderiza o Órgão e Cargo se existirem */}
                           {(qv.questoes?.orgao || qv.questoes?.cargo) && (
                             <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-md border border-blue-500/20">
                               {qv.questoes.orgao} {qv.questoes.cargo ? `• ${qv.questoes.cargo}` : ''}
@@ -399,7 +338,7 @@ export default function EditarSimuladoAdmin() {
                   />
                   <button 
                     onClick={pesquisarQuestoesNoBanco}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-black px-4 rounded-xl transition-colors flex items-center justify-center shrink-0"
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 rounded-xl transition-colors flex items-center justify-center shrink-0"
                     title="Buscar Questões"
                   >
                     <Search className="w-5 h-5" />
@@ -422,7 +361,6 @@ export default function EditarSimuladoAdmin() {
                               {q.banca} {q.ano ? `• ${q.ano}` : ''}
                             </span>
                             
-                            {/* 🚀 Renderiza o Órgão/Cargo na busca */}
                             {(q.orgao || q.cargo) && (
                               <span className="text-[9px] font-bold text-blue-400 uppercase tracking-widest truncate max-w-[200px]">
                                 {q.orgao} {q.cargo ? `• ${q.cargo}` : ''}
@@ -478,56 +416,16 @@ export default function EditarSimuladoAdmin() {
         <form onSubmit={handleSalvarConfiguracoes} className="space-y-6 max-w-4xl animate-in slide-in-from-bottom-4 duration-500">
           <div className="bg-[#131c2f]/30 p-8 rounded-2xl shadow-sm border border-white/5 space-y-6">
               
-             {/* GRID DE CLASSIFICAÇÃO */}
-             <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
-                <div className="md:col-span-12">
+             <div className="grid grid-cols-1 gap-5">
+                <div>
                   <label className="block text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2">Título do Simulado</label>
                   <input type="text" name="titulo" value={formData.titulo} onChange={handleChangeConfig} required className="w-full text-sm bg-[#09090b] border border-white/10 text-white rounded-lg px-4 py-3 focus:border-emerald-500 outline-none" />
                 </div>
                 
-                <div className="md:col-span-3">
-                  <label className="block text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2">Nº do Ciclo</label>
-                  <input type="number" name="ciclo_numero" value={formData.ciclo_numero} onChange={handleChangeConfig} min="1" required className="w-full text-sm bg-[#09090b] border border-white/10 text-white rounded-lg px-4 py-3 focus:border-emerald-500 outline-none" />
-                </div>
-
-                <div className="md:col-span-6">
-                  <label className="block text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2">Nome do Ciclo</label>
-                  <input type="text" name="ciclo_nome" value={formData.ciclo_nome} onChange={handleChangeConfig} placeholder="Ex: Fundação Estratégica" className="w-full text-sm bg-[#09090b] border border-white/10 text-white rounded-lg px-4 py-3 focus:border-emerald-500 outline-none" />
-                </div>
-
-                <div className="md:col-span-3">
-                  <label className="block text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2">Nº da Semana</label>
-                  <input type="number" name="numero_semana" value={formData.numero_semana} onChange={handleChangeConfig} min="1" required className="w-full text-sm bg-[#09090b] border border-white/10 text-white rounded-lg px-4 py-3 focus:border-emerald-500 outline-none" />
-                </div>
-             </div>
-
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2">Disciplina Foco</label>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2">Disciplina Foco <span className="text-zinc-600">(Opcional)</span></label>
                   <input type="text" name="disciplina_foco" value={formData.disciplina_foco} onChange={handleChangeConfig} className="w-full text-sm bg-[#09090b] border border-white/10 text-white rounded-lg px-4 py-3 focus:border-emerald-500 outline-none" />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2">URL da Mentoria Cirúrgica (Vídeo)</label>
-                  <input type="text" name="url_mentoria_cirurgica" value={formData.url_mentoria_cirurgica} onChange={handleChangeConfig} placeholder="https://youtube.com/watch?..." className="w-full text-sm bg-[#09090b] border border-white/10 text-white rounded-lg px-4 py-3 focus:border-emerald-500 outline-none placeholder:text-zinc-700" />
-                </div>
-             </div>
-
-             <div className="border-t border-white/5 pt-6 mt-6">
-               <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2"><Calendar className="w-4 h-4"/> Cronograma de Liberação Automatizada</h3>
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2" style={{ colorScheme: 'dark' }}>Liberação do Simulado</label>
-                    <input type="datetime-local" name="data_liberacao" value={formData.data_liberacao} onChange={handleChangeConfig} className="w-full text-sm bg-[#09090b] border border-white/10 text-white rounded-lg px-4 py-3 focus:border-emerald-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2" style={{ colorScheme: 'dark' }}>Liberação da Mentoria</label>
-                    <input type="datetime-local" name="data_liberacao_mentoria" value={formData.data_liberacao_mentoria} onChange={handleChangeConfig} className="w-full text-sm bg-[#09090b] border border-white/10 text-white rounded-lg px-4 py-3 focus:border-emerald-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2" style={{ colorScheme: 'dark' }}>Liberação do Caderno de Revisão</label>
-                    <input type="datetime-local" name="data_liberacao_caderno" value={formData.data_liberacao_caderno} onChange={handleChangeConfig} className="w-full text-sm bg-[#09090b] border border-white/10 text-white rounded-lg px-4 py-3 focus:border-emerald-500 outline-none" />
-                  </div>
-               </div>
              </div>
 
              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 border-t border-white/5 pt-6 mt-6">
@@ -537,12 +435,12 @@ export default function EditarSimuladoAdmin() {
                     <span className="text-xs font-bold uppercase tracking-widest text-white">Tornar Visível para Alunos</span>
                   </label>
                   <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" name="regra_subtracao" checked={formData.regra_subtracao} onChange={handleChangeConfig} className="w-5 h-5 accent-red-500" />
-                    <span className="text-xs font-bold uppercase tracking-widest text-white">Regra Cebraspe (Errada anula)</span>
+                    <input type="checkbox" name="regra_subtracao" checked={formData.regra_subtracao} onChange={handleChangeConfig} className="w-5 h-5 accent-emerald-500" />
+                    <span className="text-xs font-bold uppercase tracking-widest text-white">Regra Cebraspe (1 Erro anula 1 Acerto)</span>
                   </label>
                 </div>
 
-                <button type="submit" disabled={salvando} className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-black font-black text-xs uppercase tracking-widest py-3 px-8 rounded-xl transition-all shadow-sm flex items-center gap-2 w-full sm:w-auto justify-center">
+                <button type="submit" disabled={salvando} className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-xs uppercase tracking-widest py-3 px-8 rounded-xl transition-all shadow-sm flex items-center gap-2 w-full sm:w-auto justify-center">
                   {salvando ? 'A atualizar...' : <><Save className="w-4 h-4"/> Guardar Alterações</>}
                 </button>
              </div>
@@ -551,113 +449,6 @@ export default function EditarSimuladoAdmin() {
         </form>
       )}
 
-      {/* CONTEÚDO: ABA CADERNO DE APROFUNDAMENTO */}
-      {abaAtiva === 'caderno' && (
-        <div className="bg-[#131c2f]/30 p-6 md:p-8 rounded-2xl shadow-sm border border-white/5 max-w-4xl space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-          <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2 uppercase tracking-widest">
-              <Sparkles className="w-5 h-5 text-indigo-400" /> Assistente de Pesquisa Jurídica
-            </h2>
-            <p className="text-xs text-zinc-500 mt-2 uppercase tracking-widest">
-              Digite o foco da semana. A IA irá vasculhar doutrinas e jurisprudências para gerar um rascunho estruturado.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3">
-            <input 
-              type="text" 
-              id="tema-caderno"
-              placeholder="Ex: Responsabilidade Civil do Estado - Omissão e Teorias..."
-              className="flex-1 text-sm bg-[#09090b] border border-white/10 text-white rounded-xl px-4 py-3 focus:border-indigo-500 outline-none transition-all placeholder:text-zinc-600"
-            />
-            <button 
-              onClick={async () => {
-                const inputTema = document.getElementById('tema-caderno') as HTMLInputElement;
-                const tema = inputTema.value;
-                if (!tema) return alert('Digite um tema!');
-                
-                const btn = document.getElementById('btn-gerar');
-                if(btn) btn.innerHTML = 'A Pesquisar e Adicionar...';
-                
-                try {
-                  const res = await fetch('/api/gerar-caderno', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tema })
-                  });
-                  const data = await res.json();
-                  
-                  if(data.error) throw new Error(data.error);
-                  
-                  let htmlFormatado = await marked.parse(data.texto);
-                  
-                  htmlFormatado = htmlFormatado
-                    .replace(/<thead[^>]*>/gi, '')
-                    .replace(/<\/thead>/gi, '')
-                    .replace(/<tbody[^>]*>/gi, '')
-                    .replace(/<\/tbody>/gi, '')
-                    .replace(/<th[^>]*>/gi, '<td style="border: 1px solid #3f3f46; padding: 12px; color: #a1a1aa; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: bold;">')
-                    .replace(/<\/th>/gi, '</td>')
-                    .replace(/<td([^>]*)>/gi, '<td$1 style="border: 1px solid #27272a; padding: 12px; font-size: 14px; color: #e4e4e7;">');
-                  
-                  setConteudoCaderno(conteudoAnterior => {
-                    const separador = conteudoAnterior 
-                      ? `<br/><hr style="border-color: #27272a;"/><br/><h1 style="color: #10b981;"><strong>| Tópico: ${tema}</strong></h1><br/>` 
-                      : `<h1 style="color: #10b981;"><strong>| Tópico: ${tema}</strong></h1><br/>`;
-                
-                    return conteudoAnterior + separador + htmlFormatado;
-                  });
-
-                  inputTema.value = '';
-
-                } catch (err: any) {
-                  alert('Erro: ' + err.message);
-                } finally {
-                  if(btn) btn.innerHTML = 'Adicionar Rascunho com IA';
-                }
-              }}
-              id="btn-gerar"
-              className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black uppercase tracking-widest py-3 px-6 rounded-xl transition-all shadow-sm flex items-center justify-center whitespace-nowrap"
-            >
-              Adicionar Rascunho com IA
-            </button>
-          </div>
-
-          <div className="pt-6 border-t border-white/5">
-            <div className="flex justify-between items-end mb-3">
-              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest">
-                Editor de Documento
-              </label>
-              {formData.url_caderno_sobrevivencia && (
-                <a href={formData.url_caderno_sobrevivencia} target="_blank" className="text-xs font-bold uppercase tracking-widest text-emerald-500 hover:text-emerald-400 hover:underline">
-                  Ver PDF atual salvo
-                </a>
-              )}
-            </div>
-
-            {/* O ReactQuill tem fundo claro nativo, então envolvemos em uma div branca para ele funcionar visualmente bem */}
-            <div className="bg-white rounded-xl overflow-hidden border border-white/10">
-              <ReactQuill 
-                theme="snow" 
-                value={conteudoCaderno} 
-                onChange={setConteudoCaderno}
-                className="h-[400px] mb-12 text-slate-800"
-                placeholder="O conteúdo gerado aparecerá aqui. Você pode editar, adicionar negrito, tópicos..."
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-4">
-            <button 
-              onClick={salvarConteudoCaderno}
-              disabled={salvandoPdf || !conteudoCaderno}
-              className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-black text-xs font-black uppercase tracking-widest py-3 px-8 rounded-xl transition-all shadow-sm flex items-center gap-2"
-            >
-              {salvandoPdf ? 'Salvando Documento...' : 'Salvar Caderno de Aprofundamento'}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
