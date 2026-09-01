@@ -32,7 +32,6 @@ export default function AnaliseDesempenho() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Busca o histórico de tentativas do aluno vinculando com o título do simulado
         const { data, error } = await supabase
           .from('historico_tentativas')
           .select(`
@@ -51,12 +50,21 @@ export default function AnaliseDesempenho() {
         if (error) throw error;
 
         if (data && data.length > 0) {
-          setTentativas(data);
+          // Normaliza o campo 'simulados' caso venha como array do Supabase
+          const dadosFormatados: TentativaHistorico[] = data.map((t: any) => ({
+            id: t.id,
+            data_conclusao: t.data_conclusao,
+            total_acertos: t.total_acertos,
+            total_questoes: t.total_questoes,
+            simulados: Array.isArray(t.simulados) ? t.simulados[0] || null : t.simulados
+          }));
+
+          setTentativas(dadosFormatados);
 
           let questoesTotais = 0;
           let acertosTotais = 0;
 
-          data.forEach(t => {
+          dadosFormatados.forEach(t => {
             questoesTotais += t.total_questoes || 0;
             acertosTotais += t.total_acertos || 0;
           });
@@ -64,7 +72,7 @@ export default function AnaliseDesempenho() {
           const media = questoesTotais > 0 ? Math.round((acertosTotais / questoesTotais) * 100) : 0;
 
           setGeral({
-            simuladosRealizados: data.length,
+            simuladosRealizados: dadosFormatados.length,
             totalQuestoesRespondidas: questoesTotais,
             totalAcertos: acertosTotais,
             mediaAproveitamento: media
@@ -167,7 +175,6 @@ export default function AnaliseDesempenho() {
               </div>
               
               <div className="h-56 flex items-end justify-between gap-3 pt-6 border-b border-white/5 pb-2 relative overflow-x-auto custom-scrollbar">
-                {/* Linhas de grade de fundo */}
                 <div className="absolute inset-x-0 inset-y-6 flex flex-col justify-between pointer-events-none">
                   <div className="w-full h-px bg-white/5"></div>
                   <div className="w-full h-px bg-white/5"></div>
@@ -176,11 +183,9 @@ export default function AnaliseDesempenho() {
 
                 {tentativas.map((t, index) => {
                   const percentualNota = t.total_questoes > 0 ? Math.round((t.total_acertos / t.total_questoes) * 100) : 0;
-                  const dataFormatada = new Date(t.data_conclusao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
                   
                   return (
                     <div key={t.id} className="flex flex-col items-center gap-3 relative min-w-[50px] group flex-1">
-                      {/* Tooltip ao passar o mouse */}
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 bg-black border border-white/10 px-3 py-1.5 rounded-lg text-center z-20 shadow-xl whitespace-nowrap">
                         <p className="text-[10px] font-bold text-white">{t.simulados?.titulo || 'Simulado'}</p>
                         <p className="text-[10px] text-purple-400 font-black">{percentualNota}% de acertos</p>
