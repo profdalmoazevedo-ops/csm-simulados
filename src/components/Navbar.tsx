@@ -4,18 +4,15 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import Notificacoes from '@/components/Notificacoes';
 import { 
   Home, 
-  Database, 
-  Sliders, 
-  BookOpen, 
+  LayoutDashboard,
   Headset, 
-  Bell, 
+  User,
   Settings, 
   LogOut, 
   Menu, 
-  LayoutDashboard,
-  User,
   X 
 } from 'lucide-react';
 
@@ -27,15 +24,11 @@ export default function Navbar() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
-  // Simulação de notificações não lidas
-  const temNotificacao = true; 
-
   useEffect(() => {
     async function checkUser() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserEmail(user.email ?? null);
-        // Substitua pelo seu e-mail de administrador real
         if (user.email === 'profdalmoazevedo@gmail.com') {
           setIsAdmin(true);
         }
@@ -54,12 +47,12 @@ export default function Navbar() {
     return null;
   }
 
- const menuItems = [
-  { name: 'Início', href: '/', icon: Home },
-  { name: 'Central do Aluno', href: '/central', icon: LayoutDashboard },
-  { name: 'Suporte', href: '/suporte', icon: Headset },
-  { name: 'Perfil', href: '/perfil', icon: User },
-];
+  const menuItems = [
+    { name: 'Início', href: '/', icon: Home },
+    { name: 'Central do Aluno', href: '/central', icon: LayoutDashboard },
+    { name: 'Suporte', href: '/suporte', icon: Headset },
+    { name: 'Perfil', href: '/perfil', icon: User },
+  ];
 
   return (
     <nav className="sticky top-0 z-50 bg-[#09090b]/90 backdrop-blur-md border-b border-white/10">
@@ -102,12 +95,7 @@ export default function Navbar() {
           {/* Ícones da Direita Desktop */}
           <div className="hidden md:flex items-center gap-4">
             
-            <button className="relative p-2 text-zinc-400 hover:text-white transition-colors">
-              <Bell className="w-5 h-5" />
-              {temNotificacao && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
-              )}
-            </button>
+            <Notificacoes />
 
             {isAdmin && (
               <Link 
@@ -132,10 +120,7 @@ export default function Navbar() {
 
           {/* Menu Mobile Toggle */}
           <div className="md:hidden flex items-center gap-4">
-            <button className="relative p-2 text-zinc-400">
-              <Bell className="w-5 h-5" />
-              {temNotificacao && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-500 rounded-full"></span>}
-            </button>
+            <Notificacoes />
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="text-zinc-400 hover:text-white p-2"

@@ -1,10 +1,17 @@
-"use function";
 "use client";
 
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Database, BookOpen, Users, Settings } from 'lucide-react';
+import { 
+  LayoutDashboard, 
+  Database, 
+  BookOpen, 
+  Users, 
+  Settings,
+  LifeBuoy,
+  Bell
+} from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -14,6 +21,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Banco de Questões', href: '/admin/questoes', icon: Database },
     { name: 'Simulados Temáticos', href: '/admin/simulados', icon: BookOpen },
     { name: 'Gestão de Alunos', href: '/admin/alunos', icon: Users },
+    { name: 'Suporte', href: '/admin/suporte', icon: LifeBuoy },
+    { name: 'Notificações', href: '/admin/notificacoes', icon: Bell },
     { name: 'Configurações', href: '/admin/configuracoes', icon: Settings },
   ];
 
@@ -29,7 +38,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         
         <nav className="flex-1 p-4 space-y-2">
           {menuAdmin.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            // Ajuste para evitar que "Visão Geral" (/admin) fique sempre ativa nas sub-rotas
+            const isActive = item.href === '/admin' 
+              ? pathname === '/admin' 
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
+              
             const Icon = item.icon;
             
             return (

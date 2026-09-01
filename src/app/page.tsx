@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Target, TrendingUp, Award, Database, BookOpen, Loader2 } from 'lucide-react';
+import { Target, TrendingUp, Award, Database, BookOpen, Loader2, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Dashboard() {
@@ -116,23 +116,17 @@ export default function Dashboard() {
                 <span className="block text-4xl font-black text-white">{statsAluno.aproveitamento}</span>
                 <span className="text-xl text-zinc-500 font-bold">%</span>
               </div>
-              <span className="text-xs uppercase tracking-widest text-zinc-400 font-bold">Taxa de Acerto</span>
+              <span className="text-xs uppercase tracking-widest text-zinc-400 font-bold">Taxa de Acerto Geral</span>
             </div>
 
-            {/* Gráfico Visual (Barra de Progresso) */}
-            <div className="mt-6 z-10 relative">
-              <div className="flex justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">
-                <span>Aproveitamento</span>
-                <span className="text-purple-400">{statsAluno.aproveitamento}%</span>
-              </div>
-              <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
-                <div 
-                  className="bg-purple-500 h-full rounded-full transition-all duration-1000 ease-out relative" 
-                  style={{ width: `${statsAluno.aproveitamento}%` }}
-                >
-                  <div className="absolute top-0 right-0 bottom-0 left-0 bg-gradient-to-r from-transparent to-white/20"></div>
-                </div>
-              </div>
+            {/* Novo Botão Exibir Desempenho */}
+            <div className="mt-8 z-10 relative">
+              <Link 
+                href="/desempenho"
+                className="w-full inline-flex items-center justify-center gap-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-400 font-black text-[10px] uppercase tracking-widest py-3 px-4 rounded-xl transition-all"
+              >
+                Análise de Desempenho <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
           </div>
         </div>
