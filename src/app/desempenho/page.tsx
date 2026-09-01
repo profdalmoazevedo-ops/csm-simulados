@@ -50,7 +50,6 @@ export default function AnaliseDesempenho() {
         if (error) throw error;
 
         if (data && data.length > 0) {
-          // Normaliza o campo 'simulados' caso venha como array do Supabase
           const dadosFormatados: TentativaHistorico[] = data.map((t: any) => ({
             id: t.id,
             data_conclusao: t.data_conclusao,
@@ -174,8 +173,10 @@ export default function AnaliseDesempenho() {
                 <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Evolução Histórica por Prova</h2>
               </div>
               
-              <div className="h-56 flex items-end justify-between gap-3 pt-6 border-b border-white/5 pb-2 relative overflow-x-auto custom-scrollbar">
-                <div className="absolute inset-x-0 inset-y-6 flex flex-col justify-between pointer-events-none">
+              {/* Container com altura expandida e flex alinhado embaixo */}
+              <div className="h-72 flex items-end justify-between gap-4 pt-10 px-2 border-b border-white/5 pb-2 relative overflow-x-auto custom-scrollbar">
+                {/* Linhas de grade de fundo */}
+                <div className="absolute inset-x-0 inset-y-8 flex flex-col justify-between pointer-events-none">
                   <div className="w-full h-px bg-white/5"></div>
                   <div className="w-full h-px bg-white/5"></div>
                   <div className="w-full h-px bg-white/5"></div>
@@ -185,17 +186,25 @@ export default function AnaliseDesempenho() {
                   const percentualNota = t.total_questoes > 0 ? Math.round((t.total_acertos / t.total_questoes) * 100) : 0;
                   
                   return (
-                    <div key={t.id} className="flex flex-col items-center gap-3 relative min-w-[50px] group flex-1">
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 bg-black border border-white/10 px-3 py-1.5 rounded-lg text-center z-20 shadow-xl whitespace-nowrap">
+                    <div key={t.id} className="flex flex-col items-center gap-3 relative min-w-[55px] group flex-1 h-full justify-end">
+                      {/* Tooltip ao passar o mouse */}
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-2 bg-black border border-white/10 px-3 py-1.5 rounded-lg text-center z-20 shadow-xl whitespace-nowrap pointer-events-none">
                         <p className="text-[10px] font-bold text-white">{t.simulados?.titulo || 'Simulado'}</p>
-                        <p className="text-[10px] text-purple-400 font-black">{percentualNota}% de acertos</p>
+                        <p className="text-[10px] text-purple-400 font-black">{percentualNota}% ({t.total_acertos}/{t.total_questoes})</p>
                       </div>
 
+                      {/* Rótulo de porcentagem visível em cima da barra */}
+                      <span className="text-[10px] font-bold text-zinc-400">
+                        {percentualNota}%
+                      </span>
+
+                      {/* Barra com altura proporcional mínima de 12px para aparecer sempre */}
                       <div 
-                        className="w-full max-w-[3rem] bg-purple-500/20 hover:bg-purple-500/40 rounded-t-lg transition-all border-t-2 border-purple-500"
-                        style={{ height: `${Math.max(percentualNota, 5)}%` }} 
+                        className="w-full max-w-[2.5rem] bg-purple-500/30 hover:bg-purple-500/60 rounded-t-lg transition-all border-t-2 border-purple-500 shadow-lg shadow-purple-900/20"
+                        style={{ height: `${Math.max(percentualNota, 8)}%` }} 
                       />
-                      <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest text-center truncate w-full">
+
+                      <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest text-center truncate w-full pt-1">
                         #{index + 1}
                       </span>
                     </div>
