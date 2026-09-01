@@ -2,131 +2,82 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { ArrowLeft, BarChart2, Star, AlertTriangle, TrendingUp, Target, Loader2 } from 'lucide-react';
+import { ArrowLeft, BarChart2, TrendingUp, Target, Award, Loader2, BookOpen, Calendar } from 'lucide-react';
 import Link from 'next/link';
 
-interface DesempenhoTopico {
-  nome: string;
-  total: number;
-  acertos: number;
-  aproveitamento: number;
-}
-
-interface DadosEvolucao {
-  dataLabel: string;
-  aproveitamento: number;
+interface TentativaHistorico {
+  id: number;
+  data_conclusao: string;
+  total_acertos: number;
+  total_questoes: number;
+  simulados: {
+    titulo: string;
+    disciplina_foco: string | null;
+  } | null;
 }
 
 export default function AnaliseDesempenho() {
   const [loading, setLoading] = useState(true);
-  
-  const [evolucaoDiaria, setEvolucaoDiaria] = useState<DadosEvolucao[]>([]);
-  const [pontosFortes, setPontosFortes] = useState<DesempenhoTopico[]>([]);
-  const [pontosAtencao, setPontosAtencao] = useState<DesempenhoTopico[]>([]);
-  
-  const [geral, setGeral] = useState({ resolvidas: 0, acertos: 0 });
+  const [tentativas, setTentativas] = useState<TentativaHistorico[]>([]);
+  const [geral, setGeral] = useState({
+    simuladosRealizados: 0,
+    totalQuestoesRespondidas: 0,
+    totalAcertos: 0,
+    mediaAproveitamento: 0
+  });
 
   useEffect(() => {
-    async function carregarDados() {
+    async function carregarDadosDesempenho() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Puxa as respostas juntamente com os dados da questão (tópico)
-        const { data: respostas, error } = await supabase
-          .from('respostas_alunos')
+        // Busca o histórico de tentativas do aluno vinculando com o título do simulado
+        const { data, error } = await supabase
+          .from('historico_tentativas')
           .select(`
-            foi_correta,
-            criado_em,
-            questoes ( topico )
+            id,
+            data_conclusao,
+            total_acertos,
+            total_questoes,
+            simulados (
+              titulo,
+              disciplina_foco
+            )
           `)
           .eq('aluno_id', user.id)
-          .order('criado_em', { ascending: true });
+          .order('data_conclusao', { ascending: true });
 
         if (error) throw error;
-        if (!respostas || respostas.length === 0) {
-          setLoading(false);
-          return;
+
+        if (data && data.length > 0) {
+          setTentativas(data);
+
+          let questoesTotais = 0;
+          let acertosTotais = 0;
+
+          data.forEach(t => {
+            questoesTotais += t.total_questoes || 0;
+            acertosTotais += t.total_acertos || 0;
+          });
+
+          const media = questoesTotais > 0 ? Math.round((acertosTotais / questoesTotais) * 100) : 0;
+
+          setGeral({
+            simuladosRealizados: data.length,
+            totalQuestoesRespondidas: questoesTotais,
+            totalAcertos: acertosTotais,
+            mediaAproveitamento: media
+          });
         }
-
-        // 1. Processar Visão Geral
-        const totalResolvidas = respostas.length;
-        const totalAcertos = respostas.filter(r => r.foi_correta).length;
-        setGeral({ resolvidas: totalResolvidas, acertos: totalAcertos });
-
-        // 2. Processar Tópicos (Mapeamento de desempenho)
-        const topicosMap: Record<string, { total: number; acertos: number }> = {};
-        
-        respostas.forEach(r => {
-          // O retorno do join pode vir como array ou objeto dependendo do tipo da relação. 
-          // Ajustado para capturar de qualquer forma.
-          const qData = Array.isArray(r.questoes) ? r.questoes[0] : r.questoes;
-          const nomeTopico = qData?.topico || 'Outros Tópicos';
-
-          if (!topicosMap[nomeTopico]) {
-            topicosMap[nomeTopico] = { total: 0, acertos: 0 };
-          }
-          topicosMap[nomeTopico].total += 1;
-          if (r.foi_correta) topicosMap[nomeTopico].acertos += 1;
-        });
-
-        const topicosArray: DesempenhoTopico[] = Object.keys(topicosMap).map(key => {
-          const t = topicosMap[key];
-          return {
-            nome: key,
-            total: t.total,
-            acertos: t.acertos,
-            aproveitamento: Math.round((t.acertos / t.total) * 100)
-          };
-        });
-
-        // Tópicos com volume mínimo para ser estatisticamente válido (ex: >= 3 questões)
-        const topicosRelevantes = topicosArray.filter(t => t.total >= 3);
-        
-        // Ordena por aproveitamento (maior para menor)
-        topicosRelevantes.sort((a, b) => b.aproveitamento - a.aproveitamento);
-        
-        setPontosFortes(topicosRelevantes.slice(0, 3)); // Top 3
-        setPontosAtencao(topicosRelevantes.slice().reverse().slice(0, 4)); // Piores 4
-
-        // 3. Processar Gráfico de Evolução (Últimos 7 dias)
-        // Geramos os últimos 7 dias dinamicamente para garantir que o gráfico tenha base mesmo sem dados
-        const ultimos7Dias = [...Array(7)].map((_, i) => {
-          const d = new Date();
-          d.setDate(d.getDate() - (6 - i));
-          return d.toISOString().split('T')[0]; // "YYYY-MM-DD"
-        });
-
-        const evolucaoMap: Record<string, { total: number; acertos: number }> = {};
-        ultimos7Dias.forEach(d => evolucaoMap[d] = { total: 0, acertos: 0 });
-
-        respostas.forEach(r => {
-          const dataApenas = r.criado_em.split('T')[0];
-          if (evolucaoMap[dataApenas] !== undefined) {
-            evolucaoMap[dataApenas].total += 1;
-            if (r.foi_correta) evolucaoMap[dataApenas].acertos += 1;
-          }
-        });
-
-        const dadosGrafico: DadosEvolucao[] = ultimos7Dias.map(dataLabel => {
-          const dayData = evolucaoMap[dataLabel];
-          const ptBrDate = dataLabel.split('-').reverse().slice(0, 2).join('/'); // DD/MM
-          return {
-            dataLabel: ptBrDate,
-            aproveitamento: dayData.total > 0 ? Math.round((dayData.acertos / dayData.total) * 100) : 0
-          };
-        });
-
-        setEvolucaoDiaria(dadosGrafico);
-
-      } catch (error) {
-        console.error("Erro ao gerar análise:", error);
+      } catch (err) {
+        console.error("Erro ao carregar desempenho:", err);
       } finally {
         setLoading(false);
       }
     }
 
-    carregarDados();
+    carregarDadosDesempenho();
   }, []);
 
   if (loading) {
@@ -136,8 +87,6 @@ export default function AnaliseDesempenho() {
       </div>
     );
   }
-
-  const overallPercent = geral.resolvidas > 0 ? Math.round((geral.acertos / geral.resolvidas) * 100) : 0;
 
   return (
     <div className="min-h-screen bg-[#09090b] text-[#e4e4e7] font-sans pb-20">
@@ -154,113 +103,155 @@ export default function AnaliseDesempenho() {
                 <BarChart2 className="w-6 h-6 text-purple-500" /> Relatório de Desempenho
               </h1>
               <p className="text-xs text-zinc-500 mt-1 uppercase tracking-widest">
-                Estatísticas avançadas do seu progresso
+                Estatísticas avançadas do seu progresso em simulados
               </p>
             </div>
           </div>
           
           <div className="flex items-center gap-4 bg-[#131c2f]/30 px-6 py-3 rounded-2xl border border-white/5">
             <div className="text-right">
-              <span className="block text-xs font-bold text-zinc-500 uppercase tracking-widest">Taxa Geral</span>
-              <span className="text-2xl font-black text-purple-400">{overallPercent}%</span>
+              <span className="block text-xs font-bold text-zinc-500 uppercase tracking-widest">Aproveitamento Médio</span>
+              <span className="text-2xl font-black text-purple-400">{geral.mediaAproveitamento}%</span>
             </div>
           </div>
         </div>
 
-        {geral.resolvidas === 0 ? (
+        {tentativas.length === 0 ? (
           <div className="text-center py-20 bg-[#131c2f]/30 border border-white/5 rounded-3xl">
             <Target className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
             <h2 className="text-lg font-bold text-white uppercase tracking-widest mb-2">Sem histórico suficiente</h2>
-            <p className="text-sm text-zinc-500">Resolva simulados para gerar o seu relatório de desempenho.</p>
+            <p className="text-sm text-zinc-500">Conclua pelo menos um simulado para gerar o seu relatório de desempenho.</p>
           </div>
         ) : (
           <>
-            {/* GRID SUPERIOR: Gráfico e Pontos Fortes */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* CARDS DE RESUMO */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               
-              {/* Gráfico de Evolução Nativo (CSS Flexbox) */}
-              <div className="bg-[#131c2f]/30 p-8 rounded-3xl border border-white/5">
-                <div className="flex items-center gap-2 mb-8">
-                  <TrendingUp className="w-5 h-5 text-blue-500" />
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Evolução (Últimos 7 dias)</h2>
+              <div className="bg-[#131c2f]/30 border border-white/5 p-6 rounded-3xl flex items-center gap-5">
+                <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                  <BookOpen className="w-6 h-6" />
                 </div>
-                
-                <div className="h-48 flex items-end justify-between gap-2 border-b border-white/5 pb-2 relative">
-                  {/* Linhas de grade sutis ao fundo */}
-                  <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-                    <div className="w-full h-px bg-white/5"></div>
-                    <div className="w-full h-px bg-white/5"></div>
-                    <div className="w-full h-px bg-white/5"></div>
-                  </div>
-
-                  {evolucaoDiaria.map((dia, index) => (
-                    <div key={index} className="flex flex-col items-center gap-3 relative w-full group">
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 text-[10px] font-black text-white bg-black px-2 py-1 rounded">
-                        {dia.aproveitamento}%
-                      </div>
-                      <div 
-                        className="w-full max-w-[2.5rem] bg-blue-500/20 hover:bg-blue-500/40 rounded-t-sm transition-all border-t border-blue-500/50"
-                        style={{ height: `${Math.max(dia.aproveitamento, 2)}%` }} // Mínimo de 2% só para a barra ser visível
-                      />
-                      <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">{dia.dataLabel}</span>
-                    </div>
-                  ))}
+                <div>
+                  <span className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">Simulados Realizados</span>
+                  <span className="text-2xl font-black text-white">{geral.simuladosRealizados}</span>
                 </div>
               </div>
 
-              {/* Tópicos Mais Acertados */}
-              <div className="bg-[#131c2f]/30 p-8 rounded-3xl border border-white/5">
-                <div className="flex items-center gap-2 mb-6">
-                  <Star className="w-5 h-5 text-emerald-500" />
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tópicos Dominados</h2>
+              <div className="bg-[#131c2f]/30 border border-white/5 p-6 rounded-3xl flex items-center gap-5">
+                <div className="w-14 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                  <Target className="w-6 h-6" />
                 </div>
-                
-                <div className="space-y-5">
-                  {pontosFortes.length > 0 ? pontosFortes.map((topico, idx) => (
-                    <div key={idx}>
-                      <div className="flex justify-between text-xs font-bold mb-2">
-                        <span className="text-white truncate pr-4">{topico.nome}</span>
-                        <span className="text-emerald-400">{topico.aproveitamento}%</span>
+                <div>
+                  <span className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">Questões Respondidas</span>
+                  <span className="text-2xl font-black text-white">{geral.totalQuestoesRespondidas}</span>
+                </div>
+              </div>
+
+              <div className="bg-[#131c2f]/30 border border-white/5 p-6 rounded-3xl flex items-center gap-5">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <Award className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">Acertos Totais</span>
+                  <span className="text-2xl font-black text-white">{geral.totalAcertos}</span>
+                </div>
+              </div>
+
+            </div>
+
+            {/* GRÁFICO DE EVOLUÇÃO POR SIMULADO */}
+            <div className="bg-[#131c2f]/30 p-8 rounded-3xl border border-white/5 space-y-6">
+              <div className="flex items-center gap-2 border-b border-white/5 pb-4">
+                <TrendingUp className="w-5 h-5 text-purple-500" />
+                <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Evolução Histórica por Prova</h2>
+              </div>
+              
+              <div className="h-56 flex items-end justify-between gap-3 pt-6 border-b border-white/5 pb-2 relative overflow-x-auto custom-scrollbar">
+                {/* Linhas de grade de fundo */}
+                <div className="absolute inset-x-0 inset-y-6 flex flex-col justify-between pointer-events-none">
+                  <div className="w-full h-px bg-white/5"></div>
+                  <div className="w-full h-px bg-white/5"></div>
+                  <div className="w-full h-px bg-white/5"></div>
+                </div>
+
+                {tentativas.map((t, index) => {
+                  const percentualNota = t.total_questoes > 0 ? Math.round((t.total_acertos / t.total_questoes) * 100) : 0;
+                  const dataFormatada = new Date(t.data_conclusao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                  
+                  return (
+                    <div key={t.id} className="flex flex-col items-center gap-3 relative min-w-[50px] group flex-1">
+                      {/* Tooltip ao passar o mouse */}
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 bg-black border border-white/10 px-3 py-1.5 rounded-lg text-center z-20 shadow-xl whitespace-nowrap">
+                        <p className="text-[10px] font-bold text-white">{t.simulados?.titulo || 'Simulado'}</p>
+                        <p className="text-[10px] text-purple-400 font-black">{percentualNota}% de acertos</p>
                       </div>
-                      <div className="w-full bg-[#09090b] h-2 rounded-full overflow-hidden">
-                        <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${topico.aproveitamento}%` }} />
-                      </div>
+
+                      <div 
+                        className="w-full max-w-[3rem] bg-purple-500/20 hover:bg-purple-500/40 rounded-t-lg transition-all border-t-2 border-purple-500"
+                        style={{ height: `${Math.max(percentualNota, 5)}%` }} 
+                      />
+                      <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest text-center truncate w-full">
+                        #{index + 1}
+                      </span>
                     </div>
-                  )) : (
-                    <p className="text-xs text-zinc-500 uppercase tracking-widest text-center py-6">Estatísticas em formação</p>
-                  )}
-                </div>
+                  );
+                })}
               </div>
             </div>
 
-            {/* PONTOS DE ATENÇÃO (Lista detalhada) */}
-            <div className="bg-[#131c2f]/30 p-8 rounded-3xl border border-white/5">
-              <div className="flex items-center gap-2 mb-8">
-                <AlertTriangle className="w-5 h-5 text-amber-500" />
-                <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Pontos de Atenção (Maior Índice de Erros)</h2>
-              </div>
+            {/* TABELA DETALHADA DE TENTATIVAS */}
+            <div className="bg-[#131c2f]/30 p-8 rounded-3xl border border-white/5 space-y-6">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-400 border-b border-white/5 pb-4">
+                Detalhamento dos Simulados Realizados
+              </h2>
 
-              {pontosAtencao.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {pontosAtencao.map((topico, idx) => (
-                    <div key={idx} className="bg-[#09090b] border border-red-500/10 p-5 rounded-2xl flex items-center justify-between">
-                      <div>
-                        <span className="block text-xs font-black text-white mb-1 uppercase tracking-widest">{topico.nome}</span>
-                        <span className="text-[10px] text-zinc-500 uppercase tracking-widest">
-                          {topico.acertos} certas de {topico.total} resolvidas
-                        </span>
-                      </div>
-                      <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
-                        <span className="text-xs font-black text-red-400">{topico.aproveitamento}%</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-6">
-                  <p className="text-xs text-zinc-500 uppercase tracking-widest">Nenhum ponto crítico detectado ainda.</p>
-                </div>
-              )}
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-white/5 border-b border-white/5 text-[10px] uppercase tracking-widest text-zinc-500 font-bold">
+                      <th className="p-4 pl-6">Simulado</th>
+                      <th className="p-4 text-center">Data</th>
+                      <th className="p-4 text-center">Acertos</th>
+                      <th className="p-4 text-center">Desempenho</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {tentativas.map((t) => {
+                      const nota = t.total_questoes > 0 ? Math.round((t.total_acertos / t.total_questoes) * 100) : 0;
+                      return (
+                        <tr key={t.id} className="hover:bg-white/5 transition-colors">
+                          <td className="p-4 pl-6 font-bold text-white text-sm">
+                            {t.simulados?.titulo || 'Simulado Excluído'}
+                            {t.simulados?.disciplina_foco && (
+                              <span className="block text-[10px] text-zinc-500 uppercase tracking-widest mt-0.5">
+                                {t.simulados.disciplina_foco}
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-4 text-center text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                            <span className="inline-flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5" />
+                              {new Date(t.data_conclusao).toLocaleDateString('pt-BR')}
+                            </span>
+                          </td>
+                          <td className="p-4 text-center font-bold text-zinc-300 text-sm">
+                            {t.total_acertos} / {t.total_questoes}
+                          </td>
+                          <td className="p-4 text-center">
+                            <span className={`inline-flex items-center px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border ${
+                              nota >= 70 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+                              nota >= 50 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 
+                              'bg-red-500/10 text-red-400 border-red-500/20'
+                            }`}>
+                              {nota}%
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </>
         )}

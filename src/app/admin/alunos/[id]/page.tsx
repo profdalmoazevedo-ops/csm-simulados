@@ -2,22 +2,41 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useParams } from 'next/navigation';
 import { ArrowLeft, Target, Activity, Calendar, Eye, Award, Loader2, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 
-// Correção: Tipagem compatível com Next.js 13 e 14 (objeto direto)
-export default function DetalhesAluno({ params }: { params: { id: string } }) {
-  const { id } = params; // Correção: Acesso direto sem o hook 'use()'
+export default function DetalhesAluno() {
+  const params = useParams();
+  const id = params?.id as string;
+  
   const [aluno, setAluno] = useState<any>(null);
   const [historico, setHistorico] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Trava de segurança: só busca se o ID já estiver disponível na URL
+    if (!id) return;
+
     async function carregarDetalhes() {
       try {
-        const { data: perfil } = await supabase.from('usuarios').select('*').eq('id', id).single();
+        setLoading(true);
+
+        // 1. Busca perfil do aluno
+        const { data: perfil, error: errPerfil } = await supabase
+          .from('usuarios')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (errPerfil) throw errPerfil;
         
-        const { data: stats } = await supabase.from('estatisticas_alunos').select('*').eq('aluno_id', id).maybeSingle();
+        // 2. Busca gamificação
+        const { data: stats } = await supabase
+          .from('estatisticas_alunos')
+          .select('*')
+          .eq('aluno_id', id)
+          .maybeSingle();
 
         const precisao = (stats && stats.questoes_resolvidas > 0)
           ? Math.round((stats.acertos_totais / stats.questoes_resolvidas) * 100)
@@ -31,6 +50,7 @@ export default function DetalhesAluno({ params }: { params: { id: string } }) {
           precisao: precisao
         });
 
+        // 3. Busca histórico de simulados realizados
         const { data: tentativas } = await supabase
           .from('historico_tentativas')
           .select('*, simulados(titulo)')
@@ -44,6 +64,7 @@ export default function DetalhesAluno({ params }: { params: { id: string } }) {
         setLoading(false);
       }
     }
+    
     carregarDetalhes();
   }, [id]);
 
