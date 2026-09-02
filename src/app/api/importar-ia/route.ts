@@ -10,19 +10,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "O texto enviado está vazio." }, { status: 400 });
     }
 
-    // Instrução focada 100% em velocidade de extração (Zero geração de comentários)
+    // 🚀 Instrução com o Molde Exato do JSON para não haver falhas de mapeamento
     const systemInstruction = `Você é um motor de extração de dados ultrarrápido. Converta a questão em JSON.
     
     PROIBIÇÃO ABSOLUTA: NÃO GERE COMENTÁRIOS. Deixe "comentario_gabarito" vazio ("").
     
     REGRAS:
     1. ENUNCIADO: Todo o texto base, incluindo itens (I, II, III...), até chegar nas opções de resposta.
-    2. ALTERNATIVAS: Recorte as alternativas (A, B, C, D, E) sem a letra inicial.
+    2. ALTERNATIVAS: Recorte as alternativas e coloque-as EXCLUSIVAMENTE nos campos alternativa_a, alternativa_b, etc. (sem a letra inicial). Se a questão só for até a D, deixe a alternativa_e como nula.
     3. TIPO: "multipla_escolha" ou "certo_errado".
-    4. GABARITO: Apenas a letra exata ou C/E.
+    4. GABARITO: Apenas a letra exata (A, B, C, D, E) ou C/E.
     5. METADADOS: Extraia Banca, Ano, Órgão, Cargo, Matéria e Tópico explícitos no cabeçalho.
     
-    Saída ESTRITA em JSON: { "questoes": [ { ... } ] }`;
+    MOLDE OBRIGATÓRIO DE SAÍDA (Use exatamentes estas chaves):
+    {
+      "questoes": [
+        {
+          "banca": "", "orgao": "", "cargo": "", "materia": "", "topico": "",
+          "tipo_questao": "",
+          "enunciado": "",
+          "alternativa_a": "", "alternativa_b": "", "alternativa_c": "", "alternativa_d": "", "alternativa_e": "",
+          "gabarito": "", "comentario_gabarito": ""
+        }
+      ]
+    }`;
 
     let textoIAResposta = "";
 
@@ -30,7 +41,6 @@ export async function POST(req: Request) {
       const geminiApiKey = process.env.GEMINI_API_KEY;
       if (!geminiApiKey) throw new Error("GEMINI_API_KEY ausente.");
 
-      // 🚀 Usando a versão LITE como principal para garantir que seja instantâneo (1 a 3 segundos)
       const urlLite = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${geminiApiKey}`;
 
       const geminiResponse = await fetch(urlLite, {
