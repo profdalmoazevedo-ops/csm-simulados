@@ -24,7 +24,7 @@ export default function BancoDeQuestoesAdmin() {
       const { data, error } = await supabase
         .from('questoes')
         .select('*')
-        .order('id', { ascending: false }); // Usando ID temporariamente caso não tenha criado_em
+        .order('criado_em', { ascending: false }); // 🚀 Correção: ordenando pela data real de criação
 
       if (error) throw error;
       setQuestoes(data || []);
