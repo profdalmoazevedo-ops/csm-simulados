@@ -19,7 +19,6 @@ export default function NovaQuestaoAdmin() {
   const [progressoLote, setProgressoLote] = useState("");
   const [sucessoLote, setSucessoLote] = useState("");
 
-  // 🚀 ADICIONADO ORGÃO E CARGO AQUI
   const [formData, setFormData] = useState({
     banca: 'FGV',
     orgao: '',
@@ -63,9 +62,27 @@ export default function NovaQuestaoAdmin() {
         body: JSON.stringify({ textoBruto })
       });
 
-      const data = await response.json();
+      // 🚀 VACINA APLICADA NA IMPORTAÇÃO ÚNICA
+      const textResponse = await response.text();
 
-      if (!response.ok || !data.sucesso || !data.questoes?.length) {
+      if (!response.ok) {
+        let mensagemErro = `Erro ${response.status} no servidor.`;
+        try {
+          const errorJson = JSON.parse(textResponse);
+          mensagemErro = errorJson.error || mensagemErro;
+        } catch (e) {
+          if (response.status === 504) {
+            mensagemErro = "A inteligência artificial demorou muito para responder (Timeout). Tente novamente.";
+          } else {
+            mensagemErro = "O servidor retornou uma resposta inválida.";
+          }
+        }
+        throw new Error(mensagemErro);
+      }
+
+      const data = JSON.parse(textResponse);
+
+      if (!data.sucesso || !data.questoes?.length) {
         throw new Error(data.error || "A Inteligência Artificial não conseguiu fatiar este texto estruturado.");
       }
 
@@ -127,9 +144,27 @@ export default function NovaQuestaoAdmin() {
           body: JSON.stringify({ textoBruto: lotesTexto[i] })
         });
 
-        const data = await response.json();
+        // 🚀 VACINA APLICADA NA IMPORTAÇÃO EM LOTE
+        const textResponse = await response.text();
 
-        if (!response.ok || !data.sucesso) {
+        if (!response.ok) {
+          let mensagemErro = `Erro ${response.status} no servidor.`;
+          try {
+            const errorJson = JSON.parse(textResponse);
+            mensagemErro = errorJson.error || mensagemErro;
+          } catch (e) {
+            if (response.status === 504) {
+              mensagemErro = `O pacote ${i + 1} demorou muito para responder (Timeout da Vercel). Tente enviar as questões restantes em um novo lote.`;
+            } else {
+              mensagemErro = "O servidor retornou uma resposta inválida.";
+            }
+          }
+          throw new Error(mensagemErro);
+        }
+
+        const data = JSON.parse(textResponse);
+
+        if (!data.sucesso) {
           throw new Error(data.error || `A IA falhou ao processar o pacote ${i + 1}.`);
         }
 
@@ -260,8 +295,8 @@ export default function NovaQuestaoAdmin() {
 
       const insertData: any = {
         banca: formData.banca,
-        orgao: formData.orgao, // 🚀 ADICIONADO NO INSERT
-        cargo: formData.cargo, // 🚀 ADICIONADO NO INSERT
+        orgao: formData.orgao, 
+        cargo: formData.cargo, 
         tipo_questao: formData.tipo_questao,
         materia: formData.materia,
         topico: formData.topico,
@@ -409,7 +444,6 @@ export default function NovaQuestaoAdmin() {
               <BookOpen className="w-4 h-4" /> Classificação
             </h2>
             
-            {/* 🚀 NOVA GRADE COM ÓRGÃO E CARGO AQUI */}
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
