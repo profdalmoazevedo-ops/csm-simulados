@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-// Importa o seu cliente local em vez do auth-helpers (ajuste o caminho se necessário)
 import { supabase } from "@/lib/supabase"; 
 import { Play, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 
@@ -17,9 +16,8 @@ export default function AtualizadorEmLote() {
   const processarProximoLote = async () => {
     setLoading(true);
     try {
-      addLog(`Buscando até ${batchSize} questões sem órgão/cargo no banco...`);
+      addLog(`Buscando ${batchSize} questões sem órgão no banco...`);
       
-      // 1. Busca questoes onde orgao está nulo
       const { data: questoes, error: fetchError } = await supabase
         .from("questoes")
         .select("id, enunciado")
@@ -34,9 +32,8 @@ export default function AtualizadorEmLote() {
         return;
       }
 
-      addLog(`Encontradas ${questoes.length} questões. Enviando para IA...`);
+      addLog(`Enviando ${questoes.length} questões para a IA...`);
 
-      // 2. Envia o lote para a API
       const apiResponse = await fetch("/api/extrair-metadados", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -50,24 +47,37 @@ export default function AtualizadorEmLote() {
       }
 
       const extracoes = apiData.dados;
-      addLog(`IA retornou dados para ${extracoes.length} questões. Salvando no Supabase...`);
+      addLog(`IA retornou dados para ${extracoes.length} questões. Salvando...`);
 
-      // 3. Atualiza as questões no Supabase
+      let sucessoCount = 0;
+
+      // 3. O SEGREDO DO LOOP: Limpeza de nulos!
       for (const item of extracoes) {
+        // Se for "N/A" ou vazio, salvamos como "Não identificado" para sair da fila nula
+        const orgaoLimpo = (item.orgao && item.orgao.toUpperCase() !== "N/A" && item.orgao.trim() !== "") 
+                            ? item.orgao.trim() 
+                            : "Não identificado";
+                            
+        const cargoLimpo = (item.cargo && item.cargo.toUpperCase() !== "N/A" && item.cargo.trim() !== "") 
+                            ? item.cargo.trim() 
+                            : "Não identificado";
+
         const { error: updateError } = await supabase
           .from("questoes")
           .update({ 
-            orgao: item.orgao !== "N/A" ? item.orgao : null, 
-            cargo: item.cargo !== "N/A" ? item.cargo : null 
+            orgao: orgaoLimpo, 
+            cargo: cargoLimpo 
           })
           .eq("id", item.id);
           
         if (updateError) {
-          addLog(`Erro ao salvar questão ID ${item.id}: ${updateError.message}`);
+          addLog(`❌ Erro ao salvar ID ${item.id}: ${updateError.message}`);
+        } else {
+          sucessoCount++;
         }
       }
 
-      addLog(`Lote processado com sucesso!`);
+      addLog(`✅ Lote concluído! ${sucessoCount} questões atualizadas no Supabase.`);
       
     } catch (error: any) {
       addLog(`❌ ERRO: ${error.message}`);
@@ -80,7 +90,6 @@ export default function AtualizadorEmLote() {
     <div className="p-8 bg-[#09090b] min-h-screen text-white">
       <div className="max-w-4xl mx-auto space-y-6">
         
-        {/* Cabeçalho */}
         <div>
           <h1 className="text-3xl font-serif italic text-white mb-2">Migração de Metadados</h1>
           <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">
@@ -88,7 +97,6 @@ export default function AtualizadorEmLote() {
           </p>
         </div>
 
-        {/* Card de Controle */}
         <div className="bg-[#131c2f]/30 border border-white/5 rounded-xl p-6 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-white">Pronto para iniciar</h2>
@@ -106,11 +114,10 @@ export default function AtualizadorEmLote() {
             ) : (
               <Play className="w-5 h-5" />
             )}
-            {loading ? "Processando Lote..." : "Processar Próximo Lote"}
+            {loading ? "Processando..." : "Processar Lote"}
           </button>
         </div>
 
-        {/* Console de Logs */}
         <div className="bg-black/50 border border-white/10 rounded-xl p-4 h-96 overflow-y-auto custom-scrollbar">
           <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4 sticky top-0 bg-black/80 py-2 border-b border-white/10">
             Log de Execução
