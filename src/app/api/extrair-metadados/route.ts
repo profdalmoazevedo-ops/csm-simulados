@@ -12,25 +12,25 @@ export async function POST(request: Request) {
       );
     }
 
-    // 1. Cria o Prompt para Extração de Dados em Lote
-    const systemInstruction = `Você é um extrator de dados de alta precisão focado em questões de concursos públicos do Qconcursos. 
-Sua única função é ler os enunciados fornecidos e extrair duas entidades: Órgão e Cargo.
-Devolva ESTRITAMENTE um objeto JSON no formato: { "resultados": [ { "id": "id_da_questao", "orgao": "Nome do Orgao ou N/A", "cargo": "Nome do Cargo ou N/A" } ] }.
-Não adicione explicações, blocos de código markdown ou texto extra. Apenas o JSON puro.`;
+    // 1. Cria o Prompt com regras rígidas de contagem
+    const systemInstruction = `Você é um extrator de dados de alta precisão focado em questões do Qconcursos. 
+Sua tarefa é ler os enunciados e extrair o "Órgão" (ex: Polícia Federal, TJ-SP) e o "Cargo" (ex: Agente, Juiz).
+Muitas vezes, a primeira linha do enunciado contém essas informações ocultas (ex: "Ano: 2023 Banca: FGV Órgão: Receita Federal Prova: Auditor").
 
-    const questoesFormatadas = questoes.map(q => `ID: ${q.id} | ENUNCIADO: "${q.enunciado}"`).join('\n\n');
-    const prompt = `Extraia o orgao e o cargo das seguintes questões:\n\n${questoesFormatadas}`;
+REGRAS CRÍTICAS DE SISTEMA:
+1. Você recebeu uma lista com ${questoes.length} questões. O array "resultados" no seu JSON DEVE conter EXATAMENTE ${questoes.length} objetos, nem mais, nem menos.
+2. Se a informação não estiver presente no texto da questão, retorne OBRIGATORIAMENTE a string "N/A". Não use strings vazias.
+3. Responda ESTRITAMENTE com o JSON estruturado: { "resultados": [ { "id": "id_da_questao", "orgao": "...", "cargo": "..." } ] }`;
+
+    const questoesFormatadas = questoes.map(q => `ID: ${q.id}\nENUNCIADO: "${q.enunciado}"`).join('\n\n---\n\n');
+    const prompt = `Extraia o orgao e o cargo das ${questoes.length} questões abaixo:\n\n${questoesFormatadas}`;
 
     let responseText = "";
 
-    // =========================================================================
-    // 2️⃣ OPERAÇÃO PRINCIPAL: Gemini 3.5 Flash Lite
-    // =========================================================================
     try {
       const geminiApiKey = process.env.GEMINI_API_KEY;
       if (!geminiApiKey) throw new Error("GEMINI_API_KEY ausente.");
 
-      // Alterado para o modelo mais leve e rápido disponível na sua assinatura
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${geminiApiKey}`;
 
       const geminiResponse = await fetch(geminiUrl, {
@@ -55,9 +55,6 @@ Não adicione explicações, blocos de código markdown ou texto extra. Apenas o
     } catch (erroGemini: any) {
       console.warn("⚠️ Gemini falhou na extração. Acionando contingência Groq:", erroGemini.message);
 
-      // =========================================================================
-      // 3️⃣ CONTINGÊNCIA: Groq 
-      // =========================================================================
       const groqApiKey = process.env.GROQ_API_KEY;
       if (!groqApiKey) {
         throw new Error(`O Gemini falhou (${erroGemini.message}) e a Groq não está configurada.`);
@@ -80,22 +77,19 @@ Não adicione explicações, blocos de código markdown ou texto extra. Apenas o
       });
 
       if (!groqResponse.ok) {
-        throw new Error("Falha crítica: Ambos os motores (Gemini e Groq) rejeitaram a requisição.");
+        throw new Error("Falha crítica: Ambos os motores rejeitaram a requisição.");
       }
 
       const groqData = await groqResponse.json();
       responseText = groqData.choices[0].message.content;
     }
 
-    // 4. Tratamento do JSON de Retorno com Vacina
     let extracoes = [];
     try {
-      // Remove possíveis resquícios de formatação markdown caso a IA desobedeça a instrução do system
       const cleanJsonStr = responseText.replace(/```json/gi, '').replace(/```/gi, '').trim();
       const parsedData = JSON.parse(cleanJsonStr);
       extracoes = parsedData.resultados || [];
     } catch (parseError) {
-      console.error("Erro ao fazer parse do JSON retornado pela IA:", responseText);
       throw new Error("A IA retornou um formato inválido que não pôde ser convertido para JSON.");
     }
 
@@ -105,15 +99,12 @@ Não adicione explicações, blocos de código markdown ou texto extra. Apenas o
     });
 
   } catch (error: any) {
-    console.error("[API Extrair Metadados] Erro Crítico:", error);
-    
-    if (error.message.includes("429") || error.message.includes("Quota") || error.message.includes("Too Many Requests") || error.message.includes("503")) {
+    if (error.message.includes("429") || error.message.includes("503")) {
       return NextResponse.json(
-        { error: "Alta demanda ou limite de requisições atingido. Aguarde alguns segundos e tente novamente." },
+        { error: "Alta demanda ou limite de requisições atingido. Aguarde alguns segundos." },
         { status: 429 }
       );
     }
-
     return NextResponse.json(
       { error: `Falha na IA: ${error.message}` },
       { status: 500 }
