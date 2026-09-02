@@ -26,7 +26,10 @@ export async function POST(req: Request) {
         - Se detectar 4 alternativas (A, B, C, D): Marque "tipo_questao" como "multipla_escolha" e deixe a "alternativa_e" com valor null.
         - Se não houver alternativas, for apenas uma afirmação para julgar (Certo/Errado): Marque "tipo_questao" como "certo_errado" e force os campos de alternativa_a até alternativa_e para null.
     4. GABARITO: Capture a resposta. Se múltipla escolha, use a letra exata (A, B, C, D, E). Se Certo/Errado, use "C" ou "E".
-    5. CLASSIFICAÇÃO: Extraia "banca", "orgao", "cargo", "materia" e "topico". Se não estiverem explícitos, infira pelo contexto ou deixe em branco.
+5. CLASSIFICAÇÃO E METADADOS: 
+- ÓRGÃO: Busque o texto logo após a tag "Órgão:" no cabeçalho.
+- CARGO: Geralmente é a última informação da string "Prova:", localizada após o último hífen. 
+- Extraia também "banca", "materia" e "topico". Se o órgão ou cargo não estiverem no texto, retorne "Acervo Geral" para órgão e "Diversos" para cargo.
 
     IMPORTANTE: PROCESSE TODAS AS QUESTÕES PRESENTES NO TEXTO, NÃO OMITE NENHUMA. NUNCA misture as alternativas dentro do campo do enunciado.
 
@@ -144,10 +147,11 @@ export async function POST(req: Request) {
 
     const listaQuestoes = jsonParseado.questoes || jsonParseado;
 
-    const questoesPreparadas = listaQuestoes.map((q: any) => ({
+  const questoesPreparadas = listaQuestoes.map((q: any) => ({
       banca: q.banca || "FGV",
-      orgao: q.orgao || "",
-      cargo: q.cargo || "",
+      // Garante um fallback elegante caso a IA devolva null ou vazio
+      orgao: (q.orgao && q.orgao.trim() !== "") ? q.orgao : "Acervo Geral",
+      cargo: (q.cargo && q.cargo.trim() !== "") ? q.cargo : "Diversos",
       tipo_questao: q.tipo_questao,
       materia: q.materia || "Direito",
       topico: q.topico || "Assunto",

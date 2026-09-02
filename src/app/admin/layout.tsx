@@ -24,7 +24,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Suporte', href: '/admin/suporte', icon: LifeBuoy },
     { name: 'Notificações', href: '/admin/notificacoes', icon: Bell },
     { name: 'Configurações', href: '/admin/configuracoes', icon: Settings },
-    { name: 'Atualização Questões', href: '/admin/atualizacao-questoes', icon: Settings },
 
   ];
 
