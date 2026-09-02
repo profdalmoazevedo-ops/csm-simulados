@@ -26,10 +26,10 @@ export async function POST(req: Request) {
         - Se detectar 4 alternativas (A, B, C, D): Marque "tipo_questao" como "multipla_escolha" e deixe a "alternativa_e" com valor null.
         - Se não houver alternativas, for apenas uma afirmação para julgar (Certo/Errado): Marque "tipo_questao" como "certo_errado" e force os campos de alternativa_a até alternativa_e para null.
     4. GABARITO: Capture a resposta. Se múltipla escolha, use a letra exata (A, B, C, D, E). Se Certo/Errado, use "C" ou "E".
-5. CLASSIFICAÇÃO E METADADOS: 
-- ÓRGÃO: Busque o texto logo após a tag "Órgão:" no cabeçalho.
-- CARGO: Geralmente é a última informação da string "Prova:", localizada após o último hífen. 
-- Extraia também "banca", "materia" e "topico". Se o órgão ou cargo não estiverem no texto, retorne "Acervo Geral" para órgão e "Diversos" para cargo.
+    5. CLASSIFICAÇÃO E METADADOS: 
+        - ÓRGÃO: Busque o texto logo após a tag "Órgão:" no cabeçalho.
+        - CARGO: Geralmente é a última informação da string "Prova:", localizada após o último hífen. 
+        - Extraia também "banca", "materia" e "topico". Se o órgão ou cargo não estiverem no texto, retorne "Acervo Geral" para órgão e "Diversos" para cargo.
 
     IMPORTANTE: PROCESSE TODAS AS QUESTÕES PRESENTES NO TEXTO, NÃO OMITE NENHUMA. NUNCA misture as alternativas dentro do campo do enunciado.
 
@@ -57,11 +57,15 @@ export async function POST(req: Request) {
 
     try {
       const geminiApiKey = process.env.GEMINI_API_KEY;
-      if (!geminiApiKey) throw new Error("A variável GEMINI_API_KEY não foi encontrada no servidor.");
+      if (!geminiApiKey) throw new Error("A variável GEMINI_API_KEY não foi encontrada.");
 
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiApiKey}`;
+      // Tentativa 1: O modelo que você costuma usar
+      const urlPrincipal = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiApiKey}`;
+      
+      // Tentativa 2: Fallback super rápido e leve para fugir do congestionamento
+      const urlLite = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${geminiApiKey}`;
 
-      const geminiResponse = await fetch(geminiUrl, {
+      const fetchConfig = {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -82,7 +86,15 @@ export async function POST(req: Request) {
             }
           }
         })
-      });
+      };
+
+      let geminiResponse = await fetch(urlPrincipal, fetchConfig);
+
+      // Cascata: Se o 3.6-flash estiver congestionado, tenta o 3.5-flash-lite
+      if (!geminiResponse.ok && (geminiResponse.status === 503 || geminiResponse.status === 429)) {
+         console.warn("⚠️ Modelo Gemini Principal sobrecarregado. Redirecionando para o Flash-Lite...");
+         geminiResponse = await fetch(urlLite, fetchConfig);
+      }
 
       if (!geminiResponse.ok) {
          const errText = await geminiResponse.text();
@@ -93,13 +105,13 @@ export async function POST(req: Request) {
       const candidate = geminiData.candidates[0];
 
       if (candidate.finishReason === 'MAX_TOKENS') {
-         return NextResponse.json({ error: "Resposta da IA cortada por excesso de tamanho." }, { status: 413 });
+         throw new Error("Resposta da IA cortada por excesso de tamanho.");
       }
 
       textoIAResposta = candidate.content.parts[0].text;
 
     } catch (erroGemini: any) {
-      console.warn("Acionando Groq:", erroGemini.message);
+      console.warn("⚠️ Acionando Groq:", erroGemini.message);
       const groqApiKey = process.env.GROQ_API_KEY;
       
       if (!groqApiKey) {
@@ -112,6 +124,7 @@ export async function POST(req: Request) {
         body: JSON.stringify({
           model: "openai/gpt-oss-120b",
           temperature: 0,
+          max_tokens: 4096, // 🚀 Correção crítica para evitar o corte do JSON
           response_format: { type: "json_object" }, 
           messages: [
             { role: "system", content: `${systemInstruction}` },
@@ -147,9 +160,9 @@ export async function POST(req: Request) {
 
     const listaQuestoes = jsonParseado.questoes || jsonParseado;
 
-  const questoesPreparadas = listaQuestoes.map((q: any) => ({
+    // 🚀 Fallbacks elegantes adicionados no Órgão e Cargo
+    const questoesPreparadas = listaQuestoes.map((q: any) => ({
       banca: q.banca || "FGV",
-      // Garante um fallback elegante caso a IA devolva null ou vazio
       orgao: (q.orgao && q.orgao.trim() !== "") ? q.orgao : "Acervo Geral",
       cargo: (q.cargo && q.cargo.trim() !== "") ? q.cargo : "Diversos",
       tipo_questao: q.tipo_questao,
