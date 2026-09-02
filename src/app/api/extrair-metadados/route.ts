@@ -24,14 +24,14 @@ Não adicione explicações, blocos de código markdown ou texto extra. Apenas o
     let responseText = "";
 
     // =========================================================================
-    // 2️⃣ OPERAÇÃO PRINCIPAL: Gemini
+    // 2️⃣ OPERAÇÃO PRINCIPAL: Gemini 3.5 Flash Lite
     // =========================================================================
     try {
       const geminiApiKey = process.env.GEMINI_API_KEY;
       if (!geminiApiKey) throw new Error("GEMINI_API_KEY ausente.");
 
-      // Mantido o modelo solicitado
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiApiKey}`;
+      // Alterado para o modelo mais leve e rápido disponível na sua assinatura
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${geminiApiKey}`;
 
       const geminiResponse = await fetch(geminiUrl, {
         method: "POST",
@@ -70,7 +70,7 @@ Não adicione explicações, blocos de código markdown ou texto extra. Apenas o
           "Authorization": `Bearer ${groqApiKey}`
         },
         body: JSON.stringify({
-          model: "openai/gpt-oss-120b", // Mantido o modelo solicitado
+          model: "openai/gpt-oss-120b",
           temperature: 0.1,
           messages: [
             { role: "system", content: systemInstruction },
@@ -107,9 +107,9 @@ Não adicione explicações, blocos de código markdown ou texto extra. Apenas o
   } catch (error: any) {
     console.error("[API Extrair Metadados] Erro Crítico:", error);
     
-    if (error.message.includes("429") || error.message.includes("Quota") || error.message.includes("Too Many Requests")) {
+    if (error.message.includes("429") || error.message.includes("Quota") || error.message.includes("Too Many Requests") || error.message.includes("503")) {
       return NextResponse.json(
-        { error: "Limite de requisições atingido em todas as IAs. Aguarde alguns segundos." },
+        { error: "Alta demanda ou limite de requisições atingido. Aguarde alguns segundos e tente novamente." },
         { status: 429 }
       );
     }
