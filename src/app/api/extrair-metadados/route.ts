@@ -12,18 +12,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // 1. Cria o Prompt com regras rígidas de contagem
-    const systemInstruction = `Você é um extrator de dados de alta precisão focado em questões do Qconcursos. 
-Sua tarefa é ler os enunciados e extrair o "Órgão" (ex: Polícia Federal, TJ-SP) e o "Cargo" (ex: Agente, Juiz).
-Muitas vezes, a primeira linha do enunciado contém essas informações ocultas (ex: "Ano: 2023 Banca: FGV Órgão: Receita Federal Prova: Auditor").
+    // 1. Prompt especializado no padrão exato do Qconcursos (Print 2)
+    const systemInstruction = `Você é um extrator de metadados cirúrgico para questões do Qconcursos. 
+Analise o cabeçalho do enunciado de cada questão seguindo estritamente estas regras de localização:
+1. ÓRGÃO: Busque o texto localizado logo após a tag "Órgão:" (Exemplo: se o texto diz "Órgão: CRECI - 11ª Região (SC)", o órgão é "CRECI - 11ª Região (SC)").
+2. CARGO: O cargo costuma vir na última parte da string rotulada como "Prova:", geralmente após o último hífen (Exemplo: em "Prova: Ibest - 2025 - CRECI - 11ª Região (SC) - Analista de TI", o cargo é "Analista de TI"). Se não houver menção explícita a um cargo no final da prova, extraia o cargo pelo contexto ou retorne "N/A".
 
-REGRAS CRÍTICAS DE SISTEMA:
-1. Você recebeu uma lista com ${questoes.length} questões. O array "resultados" no seu JSON DEVE conter EXATAMENTE ${questoes.length} objetos, nem mais, nem menos.
-2. Se a informação não estiver presente no texto da questão, retorne OBRIGATORIAMENTE a string "N/A". Não use strings vazias.
-3. Responda ESTRITAMENTE com o JSON estruturado: { "resultados": [ { "id": "id_da_questao", "orgao": "...", "cargo": "..." } ] }`;
+REGRAS CRÍTICAS:
+- O array "resultados" no JSON DEVE conter EXATAMENTE ${questoes.length} objetos, correspondendo um a um aos IDs enviados.
+- Se não encontrar de forma alguma, retorne "N/A".
+- Responda ESTRITAMENTE em JSON puro: { "resultados": [ { "id": "id_da_questao", "orgao": "...", "cargo": "..." } ] }`;
 
     const questoesFormatadas = questoes.map(q => `ID: ${q.id}\nENUNCIADO: "${q.enunciado}"`).join('\n\n---\n\n');
-    const prompt = `Extraia o orgao e o cargo das ${questoes.length} questões abaixo:\n\n${questoesFormatadas}`;
+    const prompt = `Extraia o orgao e o cargo das seguintes questões:\n\n${questoesFormatadas}`;
 
     let responseText = "";
 
@@ -53,7 +54,7 @@ REGRAS CRÍTICAS DE SISTEMA:
       responseText = geminiData.candidates[0].content.parts[0].text;
 
     } catch (erroGemini: any) {
-      console.warn("⚠️ Gemini falhou na extração. Acionando contingência Groq:", erroGemini.message);
+      console.warn("⚠️ Gemini falhou. Acionando contingência Groq:", erroGemini.message);
 
       const groqApiKey = process.env.GROQ_API_KEY;
       if (!groqApiKey) {
