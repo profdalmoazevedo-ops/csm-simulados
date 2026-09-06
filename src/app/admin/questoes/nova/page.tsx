@@ -134,7 +134,11 @@ export default function NovaQuestaoAdmin() {
       }
 
       let questoesSalvasTotais: any[] = [];
+      
+      // 🚀 Movemos o utilitário de pausa para o topo para usá-lo em ambas as fases
+      const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+      // FASE 1: EXTRAÇÃO
       for (let i = 0; i < lotesTexto.length; i++) {
         setProgressoLote(`Extraindo pacote ${i + 1} de ${lotesTexto.length}...`);
 
@@ -144,7 +148,6 @@ export default function NovaQuestaoAdmin() {
           body: JSON.stringify({ textoBruto: lotesTexto[i] })
         });
 
-        // 🚀 VACINA APLICADA NA IMPORTAÇÃO EM LOTE
         const textResponse = await response.text();
 
         if (!response.ok) {
@@ -171,16 +174,21 @@ export default function NovaQuestaoAdmin() {
         if (data.questoes_inseridas && data.questoes_inseridas.length > 0) {
           questoesSalvasTotais = [...questoesSalvasTotais, ...data.questoes_inseridas];
         }
+
+        // 🚀 O SEGREDO: Pausa estratégica de 3 segundos antes de enviar o próximo lote
+        if (i < lotesTexto.length - 1) {
+          setProgressoLote(`Resfriando IA para manter velocidade... aguarde.`);
+          await sleep(3000); 
+        }
       }
 
       if (questoesSalvasTotais.length === 0) {
         throw new Error("Nenhuma questão pôde ser extraída do texto.");
       }
 
+      // FASE 2: GERAÇÃO DE COMENTÁRIOS
       setFaseLote('comentando');
       setProgressoLote(`Gerando comentários cirúrgicos (0/${questoesSalvasTotais.length})...`);
-
-      const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
       for (let i = 0; i < questoesSalvasTotais.length; i++) {
         const q = questoesSalvasTotais[i];
