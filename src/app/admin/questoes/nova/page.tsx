@@ -301,13 +301,27 @@ export default function NovaQuestaoAdmin() {
         ? formData.comentario_gabarito.replace(/\n/g, '<br/>')
         : '';
 
+      // 🚀 FUNÇÃO DE PADRONIZAÇÃO (TÍTULO E CAIXA ALTA)
+      const padronizarTitulo = (texto: string) => {
+        if (!texto) return '';
+        // Remove espaços nas pontas e converte a primeira letra de cada palavra para maiúscula
+        return texto.trim().toLowerCase().replace(/(?:^|\s)\S/g, a => a.toUpperCase());
+      };
+
+      const padronizarSigla = (texto: string) => {
+        if (!texto) return '';
+        return texto.trim().toUpperCase();
+      };
+
       const insertData: any = {
-        banca: formData.banca,
-        orgao: formData.orgao, 
-        cargo: formData.cargo, 
+        // Aplica a padronização antes de inserir
+        banca: padronizarSigla(formData.banca),
+        orgao: padronizarSigla(formData.orgao), 
+        cargo: padronizarTitulo(formData.cargo), 
+        materia: padronizarTitulo(formData.materia),
+        topico: padronizarTitulo(formData.topico),
+        
         tipo_questao: formData.tipo_questao,
-        materia: formData.materia,
-        topico: formData.topico,
         enunciado: formData.enunciado,
         gabarito: formData.gabarito,
         comentario_gabarito: comentarioProntoProBanco,
@@ -331,7 +345,7 @@ export default function NovaQuestaoAdmin() {
       setSalvando(false);
     }
   };
-
+  
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500 pb-12">
       
