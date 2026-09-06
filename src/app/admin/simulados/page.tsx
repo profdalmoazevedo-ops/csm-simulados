@@ -10,7 +10,7 @@ export default function GestaoSimuladosAdmin() {
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState("");
   
-  const [filtroTipo, setFiltroTipo] = useState<"todos" | "ciclo" | "revisao">("todos");
+  const [filtroTipo, setFiltroTipo] = useState<"todos" | "tematico_professor" | "gerado_aluno">("todos");
 
   useEffect(() => {
     carregarSimulados();
@@ -22,7 +22,7 @@ export default function GestaoSimuladosAdmin() {
       const { data, error } = await supabase
         .from('simulados')
         .select('*')
-        .in('tipo', ['ciclo', 'revisao'])
+        .in('tipo', ['tematico_professor', 'gerado_aluno'])
         .order('criado_em', { ascending: false });
 
       if (error) throw error;
@@ -92,29 +92,29 @@ export default function GestaoSimuladosAdmin() {
       {/* Controles de Filtro e Busca */}
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
         
-        <div className="flex bg-[#09090b] p-1 rounded-xl w-full md:w-auto border border-white/5">
+        <div className="flex bg-[#09090b] p-1 rounded-xl w-full md:w-auto border border-white/5 overflow-x-auto">
           <button 
             onClick={() => setFiltroTipo("todos")}
-            className={`flex-1 md:flex-none px-6 py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${filtroTipo === "todos" ? "bg-white/10 text-white shadow-sm" : "text-zinc-600 hover:text-zinc-300"}`}
+            className={`whitespace-nowrap px-6 py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${filtroTipo === "todos" ? "bg-white/10 text-white shadow-sm" : "text-zinc-600 hover:text-zinc-300"}`}
           >
             Todos
           </button>
           <button 
-            onClick={() => setFiltroTipo("ciclo")}
-            className={`flex-1 md:flex-none px-6 py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${filtroTipo === "ciclo" ? "bg-blue-500/20 text-blue-400 shadow-sm border border-blue-500/30" : "text-zinc-600 hover:text-zinc-300"}`}
+            onClick={() => setFiltroTipo("tematico_professor")}
+            className={`whitespace-nowrap px-6 py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${filtroTipo === "tematico_professor" ? "bg-purple-500/20 text-purple-400 shadow-sm border border-purple-500/30" : "text-zinc-600 hover:text-zinc-300"}`}
           >
-            Ciclos
+            Do Professor
           </button>
           <button 
-            onClick={() => setFiltroTipo("revisao")}
-            className={`flex-1 md:flex-none px-6 py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${filtroTipo === "revisao" ? "bg-orange-500/20 text-orange-400 shadow-sm border border-orange-500/30" : "text-zinc-600 hover:text-zinc-300"}`}
+            onClick={() => setFiltroTipo("gerado_aluno")}
+            className={`whitespace-nowrap px-6 py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${filtroTipo === "gerado_aluno" ? "bg-blue-500/20 text-blue-400 shadow-sm border border-blue-500/30" : "text-zinc-600 hover:text-zinc-300"}`}
           >
-            Revisão
+            Dos Alunos
           </button>
         </div>
 
         {/* Barra de Pesquisa */}
-        <div className="bg-[#131c2f]/30 rounded-xl border border-white/5 flex items-center gap-3 w-full md:w-96 px-4 py-2">
+        <div className="bg-[#131c2f]/30 rounded-xl border border-white/5 flex items-center gap-3 w-full md:w-96 px-4 py-2 shrink-0">
           <Search className="w-5 h-5 text-zinc-500" />
           <input 
             type="text" 
@@ -161,12 +161,12 @@ export default function GestaoSimuladosAdmin() {
                           </span>
                           
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${
-                            simulado.tipo === 'ciclo' 
-                              ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' 
-                              : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+                            simulado.tipo === 'tematico_professor'
+                              ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                              : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                           }`}>
                             <Layers className="w-3 h-3" />
-                            {simulado.tipo}
+                            {simulado.tipo === 'tematico_professor' ? 'Do Professor' : 'Do Aluno'}
                           </span>
                         </div>
                         

@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Filter, Sliders, Loader2, Zap, X, Check, PenTool } from 'lucide-react';
+import { Filter, Sliders, Loader2, Zap, X, Check, PenTool, History, Play, Trash2, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 const MultiSelectBuscavel = ({ label, placeholder, opcoes, valores, setValores, disabled = false }: { label: string, placeholder: string, opcoes: {label: string, value: string}[], valores: string[], setValores: (v: string[]) => void, disabled?: boolean }) => {
   const [aberto, setAberto] = useState(false);
@@ -82,6 +83,11 @@ const traduzirFormatoParaBanco = (val: string) => {
 export default function GeradorSimulados() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [loadingHistorico, setLoadingHistorico] = useState(false);
+  
+  // Controle de Abas
+  const [abaAtiva, setAbaAtiva] = useState<'gerar' | 'historico'>('gerar');
+  const [historicoSimulados, setHistoricoSimulados] = useState<any[]>([]);
   
   const [dadosBase, setDadosBase] = useState<any[]>([]);
   const [questoesRespondidas, setQuestoesRespondidas] = useState<Set<string>>(new Set());
@@ -97,7 +103,6 @@ export default function GeradorSimulados() {
   const [quantidadeQuestoes, setQuantidadeQuestoes] = useState(10);
   const [incluirRespondidas, setIncluirRespondidas] = useState(false);
 
-  // Faz o download de tudo 1 única vez
   useEffect(() => {
     async function carregarBaseDeDados() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -112,9 +117,53 @@ export default function GeradorSimulados() {
     carregarBaseDeDados();
   }, []);
 
-  // FILTRO EM CASCATA EM TEMPO REAL
+  // Carrega o histórico apenas quando o aluno clica na aba
+  useEffect(() => {
+    if (abaAtiva === 'historico') {
+      carregarHistorico();
+    }
+  }, [abaAtiva]);
+
+  async function carregarHistorico() {
+    setLoadingHistorico(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('simulados')
+        .select(`
+          id,
+          titulo,
+          criado_em,
+          simulado_questoes (count)
+        `)
+        .eq('tipo', 'gerado_aluno')
+        .eq('criado_por', user.id)
+        .order('criado_em', { ascending: false });
+
+      if (error) throw error;
+      setHistoricoSimulados(data || []);
+    } catch (error) {
+      console.error("Erro ao carregar histórico:", error);
+    } finally {
+      setLoadingHistorico(false);
+    }
+  }
+
+  async function excluirSimuladoHistorico(id: string) {
+    if (!confirm("Tem certeza que deseja excluir este simulado? Seu progresso nele será perdido.")) return;
+    
+    try {
+      const { error } = await supabase.from('simulados').delete().eq('id', id);
+      if (error) throw error;
+      setHistoricoSimulados(prev => prev.filter(s => s.id !== id));
+    } catch (error) {
+      alert("Erro ao excluir o simulado.");
+    }
+  }
+
   const opcoes = useMemo(() => {
-    // Função interna que simula o cruzamento de filtros
     const obterBaseFiltrada = (filtroIgnorado: string) => {
       let pool = dadosBase;
       if (!incluirRespondidas) pool = pool.filter(q => !questoesRespondidas.has(q.id));
@@ -131,7 +180,6 @@ export default function GeradorSimulados() {
       return pool;
     };
 
-    // Conta os resultados disponíveis para desenhar os dropdowns
     const gerarDropdown = (chave: string, pool: any[]) => {
       const counts = pool.reduce((acc, q) => {
         let rawVal = q[chave];
@@ -142,7 +190,6 @@ export default function GeradorSimulados() {
         else if (chave === 'ano') val = String(rawVal);
         else val = String(rawVal).trim();
 
-        // Ignora valores nulos ou vazios para limpar o banco
         if (val && val.toLowerCase() !== 'null') acc[val] = (acc[val] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
@@ -162,7 +209,6 @@ export default function GeradorSimulados() {
     };
   }, [dadosBase, bancasSelecionadas, cargosSelecionados, materiasSelecionadas, topicosSelecionados, anosSelecionados, formatosSelecionados, incluirRespondidas, questoesRespondidas]);
 
-  // Total final de questões para o botão central
   const questoesDisponiveis = useMemo(() => {
     let pool = dadosBase;
     if (!incluirRespondidas) pool = pool.filter(q => !questoesRespondidas.has(q.id));
@@ -177,7 +223,6 @@ export default function GeradorSimulados() {
     }
     return pool.map(q => q.id);
   }, [dadosBase, bancasSelecionadas, cargosSelecionados, materiasSelecionadas, topicosSelecionados, anosSelecionados, formatosSelecionados, incluirRespondidas, questoesRespondidas]);
-
 
   const gerarSimulado = async () => {
     setLoading(true);
@@ -237,101 +282,171 @@ export default function GeradorSimulados() {
     <div className="min-h-screen bg-[#09090b] text-[#e4e4e7] font-sans pb-20">
       <div className="max-w-4xl mx-auto px-6 pt-12">
         
-        <div className="text-center mb-12">
+        <div className="text-center mb-10">
           <Sliders className="w-12 h-12 text-blue-500 mx-auto mb-6" />
-          <h1 className="text-4xl font-serif text-white italic mb-4 uppercase">Criar Simulado</h1>
-          <p className="text-zinc-400">Configure os parâmetros da sua prova. O sistema montará um caderno inédito para você.</p>
+          <h1 className="text-4xl font-serif text-white italic mb-4 uppercase">Meu Laboratório</h1>
+          <p className="text-zinc-400">Configure os parâmetros da sua prova ou acesse simulados que você já gerou.</p>
         </div>
 
-        <div className="bg-[#131c2f]/30 border border-white/5 p-8 md:p-12 rounded-3xl">
-          
-          <div className="mb-10">
-            <label className="flex items-center gap-2 text-xs font-bold text-zinc-400 uppercase mb-3">
-              <PenTool className="w-4 h-4" /> Nome do Simulado (Opcional)
-            </label>
-            <input 
-              type="text"
-              value={nomeSimulado}
-              onChange={(e) => setNomeSimulado(e.target.value)}
-              placeholder="Ex: Revisão Final FGV"
-              className="w-full bg-[#09090b] border border-white/10 rounded-lg px-4 py-4 text-sm text-white focus:border-blue-500 focus:outline-none transition-colors"
-            />
-          </div>
+        {/* Sistema de Abas */}
+        <div className="flex bg-[#131c2f]/50 p-1 rounded-xl max-w-sm mx-auto mb-10 border border-white/5">
+          <button 
+            onClick={() => setAbaAtiva('gerar')}
+            className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${abaAtiva === 'gerar' ? "bg-blue-600 text-white shadow-md" : "text-zinc-500 hover:text-zinc-300"}`}
+          >
+            <Zap className="w-4 h-4" /> Gerar Novo
+          </button>
+          <button 
+            onClick={() => setAbaAtiva('historico')}
+            className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${abaAtiva === 'historico' ? "bg-white/10 text-white shadow-md" : "text-zinc-500 hover:text-zinc-300"}`}
+          >
+            <History className="w-4 h-4" /> Histórico
+          </button>
+        </div>
 
-          <div className="space-y-10">
-            <div>
-              <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/5 pb-4 mb-6 gap-4">
-                <h3 className="flex items-center gap-2 font-bold text-white">
-                  <Filter className="w-5 h-5 text-blue-500" /> Direcionamento da Prova
-                </h3>
-                
-                <div className="bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-lg text-blue-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all">
-                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                  {questoesDisponiveis.length} questões disponíveis
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <MultiSelectBuscavel label="Banca" placeholder="Ex: FGV, VUNESP" opcoes={opcoes.bancas} valores={bancasSelecionadas} setValores={setBancasSelecionadas} />
-                <MultiSelectBuscavel label="Cargo" placeholder="Ex: Analista" opcoes={opcoes.cargos} valores={cargosSelecionados} setValores={setCargosSelecionados} />
-                
-                <div className="col-span-1 md:col-span-2 h-px bg-white/5 my-2"></div>
-                
-                <MultiSelectBuscavel label="Matérias" placeholder="Ex: Direito Administrativo" opcoes={opcoes.materias} valores={materiasSelecionadas} setValores={setMateriasSelecionadas} />
-                <MultiSelectBuscavel label="Tópicos" placeholder="Ex: Atos Administrativos" opcoes={opcoes.topicos} valores={topicosSelecionados} setValores={setTopicosSelecionados} disabled={materiasSelecionadas.length === 0} />
-                
-                <div className="col-span-1 md:col-span-2 h-px bg-white/5 my-2"></div>
-
-                <MultiSelectBuscavel label="Anos" placeholder="Ex: 2024, 2023" opcoes={opcoes.anos} valores={anosSelecionados} setValores={setAnosSelecionados} />
-                <MultiSelectBuscavel label="Formatos" placeholder="Ex: Múltipla Escolha" opcoes={opcoes.formatos} valores={formatosSelecionados} setValores={setFormatosSelecionados} />
-              </div>
+        {abaAtiva === 'gerar' ? (
+          /* ABA 1: GERAR SIMULADO */
+          <div className="bg-[#131c2f]/30 border border-white/5 p-8 md:p-12 rounded-3xl animate-in fade-in">
+            <div className="mb-10">
+              <label className="flex items-center gap-2 text-xs font-bold text-zinc-400 uppercase mb-3">
+                <PenTool className="w-4 h-4" /> Nome do Simulado (Opcional)
+              </label>
+              <input 
+                type="text"
+                value={nomeSimulado}
+                onChange={(e) => setNomeSimulado(e.target.value)}
+                placeholder="Ex: Revisão Final FGV"
+                className="w-full bg-[#09090b] border border-white/10 rounded-lg px-4 py-4 text-sm text-white focus:border-blue-500 focus:outline-none transition-colors"
+              />
             </div>
 
-            <div>
-              <h3 className="font-bold text-white mb-6 border-b border-white/5 pb-4">Configuração Final</h3>
+            <div className="space-y-10">
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase mb-4">Quantidade de Questões</label>
-                <div className="flex flex-wrap gap-4">
-                  {[10, 20, 30, 50, 100].map(num => (
-                    <button
-                      key={num}
-                      onClick={() => setQuantidadeQuestoes(num)}
-                      className={`flex-1 py-4 rounded-xl font-black text-sm transition-all border min-w-[60px] ${
-                        quantidadeQuestoes === num 
-                          ? 'bg-blue-600 border-blue-500 text-white' 
-                          : 'bg-[#09090b] border-white/10 text-zinc-400 hover:border-blue-500/50'
-                      }`}
-                    >
-                      {num}
-                    </button>
-                  ))}
+                <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/5 pb-4 mb-6 gap-4">
+                  <h3 className="flex items-center gap-2 font-bold text-white">
+                    <Filter className="w-5 h-5 text-blue-500" /> Direcionamento da Prova
+                  </h3>
+                  
+                  <div className="bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-lg text-blue-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                    {questoesDisponiveis.length} questões disponíveis
+                  </div>
                 </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <MultiSelectBuscavel label="Banca" placeholder="Ex: FGV, VUNESP" opcoes={opcoes.bancas} valores={bancasSelecionadas} setValores={setBancasSelecionadas} />
+                  <MultiSelectBuscavel label="Cargo" placeholder="Ex: Analista" opcoes={opcoes.cargos} valores={cargosSelecionados} setValores={setCargosSelecionados} />
+                  
+                  <div className="col-span-1 md:col-span-2 h-px bg-white/5 my-2"></div>
+                  
+                  <MultiSelectBuscavel label="Matérias" placeholder="Ex: Direito Administrativo" opcoes={opcoes.materias} valores={materiasSelecionadas} setValores={setMateriasSelecionadas} />
+                  <MultiSelectBuscavel label="Tópicos" placeholder="Ex: Atos Administrativos" opcoes={opcoes.topicos} valores={topicosSelecionados} setValores={setTopicosSelecionados} disabled={materiasSelecionadas.length === 0} />
+                  
+                  <div className="col-span-1 md:col-span-2 h-px bg-white/5 my-2"></div>
 
-                <label className="flex items-center gap-3 cursor-pointer mt-8 w-fit group">
-                  <input 
-                    type="checkbox"
-                    checked={incluirRespondidas}
-                    onChange={(e) => setIncluirRespondidas(e.target.checked)}
-                    className="w-5 h-5 rounded border border-white/10 bg-[#09090b] text-blue-600 focus:ring-blue-500 focus:ring-offset-[#09090b] accent-blue-600 cursor-pointer"
-                  />
-                  <span className="text-sm text-zinc-400 group-hover:text-zinc-200 transition-colors">
-                    Incluir questões que eu já respondi
-                  </span>
-                </label>
-
+                  <MultiSelectBuscavel label="Anos" placeholder="Ex: 2024, 2023" opcoes={opcoes.anos} valores={anosSelecionados} setValores={setAnosSelecionados} />
+                  <MultiSelectBuscavel label="Formatos" placeholder="Ex: Múltipla Escolha" opcoes={opcoes.formatos} valores={formatosSelecionados} setValores={setFormatosSelecionados} />
+                </div>
               </div>
-            </div>
 
-            <button 
-              onClick={gerarSimulado}
-              disabled={loading || questoesDisponiveis.length === 0}
-              className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-white font-black uppercase text-sm tracking-widest py-6 rounded-2xl flex items-center justify-center gap-3 transition-colors mt-8 shadow-xl shadow-blue-900/20"
-            >
-              {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Zap className="w-6 h-6" /> Gerar Prova e Começar</>}
-            </button>
+              <div>
+                <h3 className="font-bold text-white mb-6 border-b border-white/5 pb-4">Configuração Final</h3>
+                <div>
+                  <label className="block text-xs font-bold text-zinc-400 uppercase mb-4">Quantidade de Questões</label>
+                  <div className="flex flex-wrap gap-4">
+                    {[10, 20, 30, 50, 100].map(num => (
+                      <button
+                        key={num}
+                        onClick={() => setQuantidadeQuestoes(num)}
+                        className={`flex-1 py-4 rounded-xl font-black text-sm transition-all border min-w-[60px] ${
+                          quantidadeQuestoes === num 
+                            ? 'bg-blue-600 border-blue-500 text-white' 
+                            : 'bg-[#09090b] border-white/10 text-zinc-400 hover:border-blue-500/50'
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+
+                  <label className="flex items-center gap-3 cursor-pointer mt-8 w-fit group">
+                    <input 
+                      type="checkbox"
+                      checked={incluirRespondidas}
+                      onChange={(e) => setIncluirRespondidas(e.target.checked)}
+                      className="w-5 h-5 rounded border border-white/10 bg-[#09090b] text-blue-600 focus:ring-blue-500 focus:ring-offset-[#09090b] accent-blue-600 cursor-pointer"
+                    />
+                    <span className="text-sm text-zinc-400 group-hover:text-zinc-200 transition-colors">
+                      Incluir questões que eu já respondi
+                    </span>
+                  </label>
+
+                </div>
+              </div>
+
+              <button 
+                onClick={gerarSimulado}
+                disabled={loading || questoesDisponiveis.length === 0}
+                className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-white font-black uppercase text-sm tracking-widest py-6 rounded-2xl flex items-center justify-center gap-3 transition-colors mt-8 shadow-xl shadow-blue-900/20"
+              >
+                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Zap className="w-6 h-6" /> Gerar Prova e Começar</>}
+              </button>
+            </div>
+            
           </div>
-          
-        </div>
+        ) : (
+          /* ABA 2: HISTÓRICO DE SIMULADOS */
+          <div className="animate-in fade-in">
+            {loadingHistorico ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="w-8 h-8 animate-spin text-zinc-500" />
+              </div>
+            ) : historicoSimulados.length === 0 ? (
+              <div className="text-center py-20 bg-[#131c2f]/30 border border-white/5 rounded-3xl">
+                <AlertCircle className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-zinc-300">Você ainda não gerou nenhuma prova.</h3>
+                <p className="text-sm text-zinc-500 mt-2">Crie seu primeiro simulado personalizado na aba ao lado.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {historicoSimulados.map((simulado) => {
+                  const qtdQuestoes = simulado.simulado_questoes[0]?.count || 0;
+                  const dataFormatada = new Date(simulado.criado_em).toLocaleDateString('pt-BR');
+
+                  return (
+                    <div key={simulado.id} className="bg-[#131c2f]/30 border border-white/5 p-5 md:p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 transition-colors hover:border-blue-500/30">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 block">
+                          Criado em {dataFormatada}
+                        </span>
+                        <h3 className="text-lg font-bold text-white mb-2">{simulado.titulo}</h3>
+                        <p className="text-sm font-medium text-blue-400">
+                          {qtdQuestoes} Questões
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0">
+                        <Link 
+                          href={`/simulado/${simulado.id}`}
+                          className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-sm"
+                        >
+                          <Play className="w-4 h-4 fill-current" /> Refazer
+                        </Link>
+                        <button 
+                          onClick={() => excluirSimuladoHistorico(simulado.id)}
+                          className="p-3 bg-white/5 hover:bg-red-500/20 text-zinc-400 hover:text-red-400 rounded-xl transition-colors"
+                          title="Excluir Histórico"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
