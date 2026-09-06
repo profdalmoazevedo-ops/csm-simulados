@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useParams, useRouter } from 'next/navigation';
-import { Loader2, CheckCircle2, XCircle, ArrowLeft, MessageSquare } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, ArrowLeft, MessageSquare, Clock, Save } from 'lucide-react';
 
 export default function ResolucaoSimulado() {
   const params = useParams();
@@ -14,10 +14,8 @@ export default function ResolucaoSimulado() {
   const [questoes, setQuestoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Respostas do aluno durante a prova
   const [respostas, setRespostas] = useState<Record<string, string>>({});
   
-  // Controle de finalização
   const [finalizando, setFinalizando] = useState(false);
   const [finalizado, setFinalizado] = useState(false);
   const [resultado, setResultado] = useState({ acertos: 0, erros: 0, brancos: 0, notaFinal: 0 });
@@ -27,7 +25,6 @@ export default function ResolucaoSimulado() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
 
-        // 1. Busca os dados da capa do simulado
         const { data: dadosSimulado, error: erroSimulado } = await supabase
           .from('simulados')
           .select('*')
@@ -37,7 +34,6 @@ export default function ResolucaoSimulado() {
         if (erroSimulado) throw erroSimulado;
         setSimulado(dadosSimulado);
 
-        // 2. Busca as questões vinculadas a este simulado
         const { data: relacoes, error: erroRelacoes } = await supabase
           .from('simulado_questoes')
           .select('ordem, questoes(*)')
@@ -49,7 +45,6 @@ export default function ResolucaoSimulado() {
         const listaQuestoes = relacoes.map((item: any) => item.questoes);
         setQuestoes(listaQuestoes);
 
-        // 3. Verifica se o aluno já concluiu este simulado (Recuperação do Banco)
         if (user) {
           const { data: respostasSalvas } = await supabase
             .from('respostas_alunos')
@@ -83,11 +78,10 @@ export default function ResolucaoSimulado() {
             setResultado({ acertos, erros, brancos, notaFinal });
             setFinalizado(true);
             setLoading(false);
-            return; // Interrompe o carregamento aqui para não puxar o rascunho
+            return; 
           }
         }
 
-        // 4. Se não entregou a prova, tenta recuperar o rascunho pausado no navegador
         const progressoSalvo = localStorage.getItem(`simulado_progresso_${simuladoId}`);
         if (progressoSalvo) {
           setRespostas(JSON.parse(progressoSalvo));
@@ -164,7 +158,6 @@ export default function ResolucaoSimulado() {
       try {
         await supabase.from('respostas_alunos').insert(respostasParaSalvar);
         
-        // Registra também na tabela de histórico geral para as estatísticas
         await supabase.from('historico_tentativas').insert({
           aluno_id: user.id,
           simulado_id: simuladoId,
@@ -195,30 +188,47 @@ export default function ResolucaoSimulado() {
   return (
     <div className="min-h-screen bg-[#09090b] text-[#e4e4e7] font-sans pb-20">
       
-      <div className="sticky top-0 z-50 bg-[#09090b]/90 backdrop-blur-md border-b border-white/10 px-6 py-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={() => router.push('/')} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+      <div className="sticky top-0 z-50 bg-[#09090b]/90 backdrop-blur-md border-b border-white/10 px-4 md:px-6 py-4">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3 md:gap-4">
+            <button onClick={() => router.push('/')} className="p-2 hover:bg-white/5 rounded-full transition-colors shrink-0">
               <ArrowLeft className="w-5 h-5 text-zinc-400" />
             </button>
-            <div>
+            <div className="hidden sm:block">
               <h1 className="font-bold text-white truncate max-w-[200px] md:max-w-md">{simulado?.titulo}</h1>
               <p className="text-xs text-zinc-500">{questoes.length} Questões {simulado?.regra_subtracao && '• Regra Cebraspe'}</p>
             </div>
           </div>
           
           {!finalizado && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-zinc-400">
-                {Object.keys(respostas).length} / {questoes.length}
-              </span>
-              <button 
-                onClick={finalizarSimulado}
-                disabled={finalizando}
-                className="ml-4 bg-emerald-600 hover:bg-emerald-500 text-black px-6 py-2 rounded-lg font-black text-xs uppercase tracking-widest transition-colors flex items-center gap-2 disabled:opacity-50"
-              >
-                {finalizando ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Entregar Prova'}
-              </button>
+            <div className="flex items-center gap-3 md:gap-6">
+              
+              <div className="flex flex-col items-end text-right">
+                <span className="text-sm font-bold text-zinc-300">
+                  {Object.keys(respostas).length} / {questoes.length}
+                </span>
+                <span className="hidden md:flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-emerald-500 mt-0.5">
+                  <CheckCircle2 className="w-3 h-3" /> Salvo
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 md:gap-3">
+                <button 
+                  onClick={() => router.push('/gerador?aba=historico')}
+                  className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 md:px-6 py-2 md:py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-colors flex items-center gap-2 border border-white/5"
+                >
+                  <Clock className="w-4 h-4" /> <span className="hidden sm:inline">Pausar</span>
+                </button>
+
+                <button 
+                  onClick={finalizarSimulado}
+                  disabled={finalizando}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-black px-4 md:px-6 py-2 md:py-2.5 rounded-xl font-black text-[10px] md:text-xs uppercase tracking-widest transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {finalizando ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Entregar'}
+                </button>
+              </div>
+
             </div>
           )}
         </div>

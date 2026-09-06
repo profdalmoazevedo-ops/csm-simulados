@@ -629,14 +629,14 @@ export default function GeradorSimulados() {
                     
                     <button 
                       onClick={() => acionarCadernoErros(50)}
-                      disabled={loading || estatisticasErros.totalErros < 25}
+                      disabled={loading || estatisticasErros.totalErros < 50}
                       className="flex-1 bg-[#09090b] border-2 border-orange-500/30 hover:border-orange-500 disabled:opacity-50 text-orange-500 hover:text-orange-400 font-black uppercase text-xs tracking-widest py-5 rounded-xl flex items-center justify-center gap-2 transition-all"
                     >
                       {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Play className="w-4 h-4 fill-current" /> 50 Questões</>}
                     </button>
                   </div>
 
-                  {estatisticasErros.totalErros > 0 && estatisticasErros.totalErros < 25 && (
+                  {estatisticasErros.totalErros > 0 && estatisticasErros.totalErros < 50 && (
                     <p className="text-[10px] text-zinc-500 mt-4 uppercase tracking-widest">
                       * O pacote de 50 questões requer mais erros acumulados no histórico.
                     </p>
