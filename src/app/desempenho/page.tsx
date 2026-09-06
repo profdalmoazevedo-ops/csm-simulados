@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { ArrowLeft, BarChart2, TrendingUp, Target, Award, Loader2, BookOpen, Calendar } from 'lucide-react';
+import { ArrowLeft, BarChart2, TrendingUp, Target, Award, Loader2, BookOpen, Calendar, Flame, Zap } from 'lucide-react';
 import Link from 'next/link';
 
 interface TentativaHistorico {
@@ -23,6 +23,7 @@ export default function AnaliseDesempenho() {
     simuladosRealizados: 0,
     totalQuestoesRespondidas: 0,
     totalAcertos: 0,
+    totalErros: 0,
     mediaAproveitamento: 0
   });
 
@@ -69,11 +70,13 @@ export default function AnaliseDesempenho() {
           });
 
           const media = questoesTotais > 0 ? Math.round((acertosTotais / questoesTotais) * 100) : 0;
+          const errosTotais = questoesTotais - acertosTotais;
 
           setGeral({
             simuladosRealizados: dadosFormatados.length,
             totalQuestoesRespondidas: questoesTotais,
             totalAcertos: acertosTotais,
+            totalErros: errosTotais,
             mediaAproveitamento: media
           });
         }
@@ -166,6 +169,35 @@ export default function AnaliseDesempenho() {
 
             </div>
 
+            {/* 🚀 NOVO: GATILHO VISUAL PARA CADERNO DE ERROS */}
+            {geral.totalErros > 0 && (
+              <div className="relative group overflow-hidden rounded-3xl border-2 border-orange-500/30 bg-gradient-to-r from-orange-500/10 to-[#131c2f]/30 p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="absolute inset-0 bg-orange-500/5 animate-pulse pointer-events-none"></div>
+                
+                <div className="relative z-10 flex items-center gap-5">
+                  <div className="w-16 h-16 rounded-2xl bg-orange-500/20 text-orange-500 flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/20">
+                    <Flame className="w-8 h-8 fill-orange-500/50" />
+                  </div>
+                  <div>
+                    <h3 className="text-orange-400 font-black uppercase tracking-widest text-lg md:text-xl mb-1">
+                      Caderno de Erros Ativado
+                    </h3>
+                    <p className="text-zinc-300 text-sm max-w-xl">
+                      Você possui <strong className="text-white">{geral.totalErros} questões</strong> registradas com erro no seu histórico. A melhor forma de evoluir é atacar as suas fraquezas.
+                    </p>
+                  </div>
+                </div>
+
+                <Link 
+                  href="/gerador?aba=erros" 
+                  className="relative z-10 w-full md:w-auto shrink-0 bg-orange-600 hover:bg-orange-500 text-white font-black uppercase tracking-widest text-xs px-8 py-4 rounded-xl transition-all shadow-lg shadow-orange-900/20 flex items-center justify-center gap-2"
+                >
+                  <Zap className="w-4 h-4 fill-current" />
+                  Resgatar Meus Erros
+                </Link>
+              </div>
+            )}
+
             {/* GRÁFICO DE EVOLUÇÃO POR SIMULADO */}
             <div className="bg-[#131c2f]/30 p-8 rounded-3xl border border-white/5 space-y-6">
               <div className="flex items-center gap-2 border-b border-white/5 pb-4">
@@ -173,9 +205,7 @@ export default function AnaliseDesempenho() {
                 <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Evolução Histórica por Prova</h2>
               </div>
               
-              {/* Container com altura expandida e flex alinhado embaixo */}
               <div className="h-72 flex items-end justify-between gap-4 pt-10 px-2 border-b border-white/5 pb-2 relative overflow-x-auto custom-scrollbar">
-                {/* Linhas de grade de fundo */}
                 <div className="absolute inset-x-0 inset-y-8 flex flex-col justify-between pointer-events-none">
                   <div className="w-full h-px bg-white/5"></div>
                   <div className="w-full h-px bg-white/5"></div>
@@ -187,18 +217,15 @@ export default function AnaliseDesempenho() {
                   
                   return (
                     <div key={t.id} className="flex flex-col items-center gap-3 relative min-w-[55px] group flex-1 h-full justify-end">
-                      {/* Tooltip ao passar o mouse */}
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-2 bg-black border border-white/10 px-3 py-1.5 rounded-lg text-center z-20 shadow-xl whitespace-nowrap pointer-events-none">
                         <p className="text-[10px] font-bold text-white">{t.simulados?.titulo || 'Simulado'}</p>
                         <p className="text-[10px] text-purple-400 font-black">{percentualNota}% ({t.total_acertos}/{t.total_questoes})</p>
                       </div>
 
-                      {/* Rótulo de porcentagem visível em cima da barra */}
                       <span className="text-[10px] font-bold text-zinc-400">
                         {percentualNota}%
                       </span>
 
-                      {/* Barra com altura proporcional mínima de 12px para aparecer sempre */}
                       <div 
                         className="w-full max-w-[2.5rem] bg-purple-500/30 hover:bg-purple-500/60 rounded-t-lg transition-all border-t-2 border-purple-500 shadow-lg shadow-purple-900/20"
                         style={{ height: `${Math.max(percentualNota, 8)}%` }} 
