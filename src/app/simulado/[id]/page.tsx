@@ -48,6 +48,12 @@ export default function ResolucaoSimulado() {
         const listaQuestoes = relacoes.map((item: any) => item.questoes);
         setQuestoes(listaQuestoes);
 
+        // 🚀 NOVIDADE: RECUPERA PROGRESSO SALVO NO NAVEGADOR (Pausar/Continuar)
+        const progressoSalvo = localStorage.getItem(`simulado_progresso_${simuladoId}`);
+        if (progressoSalvo) {
+          setRespostas(JSON.parse(progressoSalvo));
+        }
+
       } catch (error) {
         console.error("Erro ao carregar simulado:", error);
         alert("Não foi possível carregar a prova. Ela pode ter sido excluída.");
@@ -64,7 +70,15 @@ export default function ResolucaoSimulado() {
 
   const marcarAlternativa = (questaoId: string, letra: string) => {
     if (finalizado) return; // Trava a prova após finalizada
-    setRespostas(prev => ({ ...prev, [questaoId]: letra }));
+    
+    setRespostas(prev => {
+      const novasRespostas = { ...prev, [questaoId]: letra };
+      
+      // 🚀 NOVIDADE: SALVA O PROGRESSO NO NAVEGADOR A CADA CLIQUE
+      localStorage.setItem(`simulado_progresso_${simuladoId}`, JSON.stringify(novasRespostas));
+      
+      return novasRespostas;
+    });
   };
 
   const finalizarSimulado = async () => {
@@ -117,7 +131,9 @@ export default function ResolucaoSimulado() {
       try {
         await supabase.from('respostas_alunos').insert(respostasParaSalvar);
         
-        // Aqui também poderíamos inserir na tabela 'historico_tentativas' no futuro
+        // 🚀 NOVIDADE: LIMPA O PROGRESSO SALVO NO NAVEGADOR APÓS A ENTREGA DA PROVA
+        localStorage.removeItem(`simulado_progresso_${simuladoId}`);
+        
       } catch (error) {
         console.error("Erro ao salvar histórico:", error);
       }
@@ -243,7 +259,6 @@ export default function ResolucaoSimulado() {
 
                     let estiloBotao = "border-white/5 bg-[#09090b] text-zinc-400";
                     let estiloLetra = "border-white/10 text-zinc-400";
-                    let icone = letra;
 
                     if (!revelarGabarito) {
                       // Durante a prova (modo oculto)

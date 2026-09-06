@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Filter, Sliders, Loader2, Zap, X, Check, PenTool, History, Play, Trash2, AlertCircle } from 'lucide-react';
+import { Filter, Sliders, Loader2, Zap, X, PenTool, History, Play, Trash2, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -124,13 +124,15 @@ export default function GeradorSimulados() {
     }
   }, [abaAtiva]);
 
+  // 🚀 NOVIDADE: FUNÇÃO DE CARREGAMENTO INTELIGENTE DO HISTÓRICO
   async function carregarHistorico() {
     setLoadingHistorico(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data, error } = await supabase
+      // 1. Busca os simulados gerados
+      const { data: simulados, error } = await supabase
         .from('simulados')
         .select(`
           id,
@@ -143,7 +145,28 @@ export default function GeradorSimulados() {
         .order('criado_em', { ascending: false });
 
       if (error) throw error;
-      setHistoricoSimulados(data || []);
+
+      // 2. Busca respostas para identificar os Concluídos
+      const { data: respostasSalvas } = await supabase
+        .from('respostas_alunos')
+        .select('simulado_id')
+        .eq('aluno_id', user.id);
+      
+      const simuladosConcluidos = new Set(respostasSalvas?.map(r => r.simulado_id));
+
+      // 3. Monta o status misturando Banco de Dados + LocalStorage
+      const simuladosComStatus = (simulados || []).map(simulado => {
+        const isConcluido = simuladosConcluidos.has(simulado.id);
+        const isEmAndamento = typeof window !== 'undefined' && !!localStorage.getItem(`simulado_progresso_${simulado.id}`);
+        
+        let status = 'novo';
+        if (isConcluido) status = 'concluido';
+        else if (isEmAndamento) status = 'andamento';
+
+        return { ...simulado, status };
+      });
+
+      setHistoricoSimulados(simuladosComStatus);
     } catch (error) {
       console.error("Erro ao carregar histórico:", error);
     } finally {
@@ -157,6 +180,10 @@ export default function GeradorSimulados() {
     try {
       const { error } = await supabase.from('simulados').delete().eq('id', id);
       if (error) throw error;
+      
+      // Limpa a memória do navegador por precaução
+      localStorage.removeItem(`simulado_progresso_${id}`);
+      
       setHistoricoSimulados(prev => prev.filter(s => s.id !== id));
     } catch (error) {
       alert("Erro ao excluir o simulado.");
@@ -413,12 +440,37 @@ export default function GeradorSimulados() {
                   const qtdQuestoes = simulado.simulado_questoes[0]?.count || 0;
                   const dataFormatada = new Date(simulado.criado_em).toLocaleDateString('pt-BR');
 
+                  // 🚀 DEFINIÇÕES VISUAIS BASEADAS NO STATUS
+                  let corStatus = "text-zinc-400 bg-white/5 border-white/10";
+                  let iconeStatus = <Zap className="w-3 h-3" />;
+                  let textoStatus = "Não Iniciado";
+                  let textoBotao = "Iniciar";
+
+                  if (simulado.status === 'concluido') {
+                    corStatus = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+                    iconeStatus = <CheckCircle2 className="w-3 h-3" />;
+                    textoStatus = "Concluído";
+                    textoBotao = "Ver Resultado";
+                  } else if (simulado.status === 'andamento') {
+                    corStatus = "text-amber-400 bg-amber-500/10 border-amber-500/20";
+                    iconeStatus = <Clock className="w-3 h-3" />;
+                    textoStatus = "Pausado";
+                    textoBotao = "Continuar";
+                  }
+
                   return (
-                    <div key={simulado.id} className="bg-[#131c2f]/30 border border-white/5 p-5 md:p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 transition-colors hover:border-blue-500/30">
+                    <div key={simulado.id} className={`bg-[#131c2f]/30 border p-5 md:p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 transition-colors hover:border-blue-500/30 ${simulado.status === 'concluido' ? 'border-white/5' : 'border-white/10'}`}>
                       <div>
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 block">
-                          Criado em {dataFormatada}
-                        </span>
+                        
+                        <div className="flex items-center gap-3 mb-3">
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest border ${corStatus}`}>
+                            {iconeStatus} {textoStatus}
+                          </span>
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                            Criado em {dataFormatada}
+                          </span>
+                        </div>
+                        
                         <h3 className="text-lg font-bold text-white mb-2">{simulado.titulo}</h3>
                         <p className="text-sm font-medium text-blue-400">
                           {qtdQuestoes} Questões
@@ -428,9 +480,9 @@ export default function GeradorSimulados() {
                       <div className="flex items-center gap-3 shrink-0">
                         <Link 
                           href={`/simulado/${simulado.id}`}
-                          className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-sm"
+                          className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-sm ${simulado.status === 'concluido' ? 'bg-zinc-800 hover:bg-zinc-700 text-white' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
                         >
-                          <Play className="w-4 h-4 fill-current" /> Refazer
+                          <Play className="w-4 h-4 fill-current" /> {textoBotao}
                         </Link>
                         <button 
                           onClick={() => excluirSimuladoHistorico(simulado.id)}
