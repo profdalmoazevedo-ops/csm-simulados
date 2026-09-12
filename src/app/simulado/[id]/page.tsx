@@ -270,6 +270,9 @@ export default function ResolucaoSimulado() {
             const gabarito = questao.gabarito.toLowerCase();
             const revelarGabarito = finalizado;
             const acertou = marcada === gabarito;
+            
+            // 🚀 NOVA LÓGICA: Verifica o tipo de questão pelo banco de dados
+            const isCertoErrado = questao.tipo_questao === 'certo_errado';
 
             return (
               <div key={questao.id} className={`p-6 md:p-8 rounded-3xl border transition-colors ${
@@ -293,50 +296,134 @@ export default function ResolucaoSimulado() {
                 </div>
 
                 <div className="space-y-3">
-                 {['a', 'b', 'c', 'd', 'e'].map((letra) => {
-                    const alternativaTexto = questao[`alternativa_${letra}`];
-                    
-                    if (!alternativaTexto || String(alternativaTexto).trim().toLowerCase() === 'null' || String(alternativaTexto).trim() === '') {
-                      return null;
-                    }
+                  {/* RENDERIZAÇÃO CONDICIONAL */}
+                  {isCertoErrado ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Botão CERTO */}
+                      {(() => {
+                        let estiloBotao = "border-white/5 bg-[#09090b] text-zinc-400";
+                        let estiloLetra = "border-white/10 text-zinc-400";
+                        
+                        if (!revelarGabarito) {
+                          if (marcada === 'c') {
+                            estiloBotao = "border-blue-500/50 bg-blue-500/10 text-blue-400";
+                            estiloLetra = "border-blue-500 bg-blue-500 text-black";
+                          } else {
+                            estiloBotao += " hover:border-white/20";
+                          }
+                        } else {
+                          if (gabarito === 'c') {
+                            estiloBotao = "border-emerald-500/50 bg-emerald-500/10 text-emerald-500";
+                            estiloLetra = "border-emerald-500 bg-emerald-500 text-black";
+                          } else if (marcada === 'c' && !acertou) {
+                            estiloBotao = "border-red-500/50 bg-red-500/10 text-red-500";
+                            estiloLetra = "border-red-500 bg-red-500 text-black";
+                          } else {
+                            estiloBotao = "border-white/5 bg-[#09090b] opacity-40 text-zinc-600";
+                            estiloLetra = "border-white/5 text-zinc-700";
+                          }
+                        }
 
-                    let estiloBotao = "border-white/5 bg-[#09090b] text-zinc-400";
-                    let estiloLetra = "border-white/10 text-zinc-400";
+                        return (
+                          <button 
+                            onClick={() => marcarAlternativa(questao.id, 'c')}
+                            disabled={finalizado}
+                            className={`w-full text-center p-6 rounded-2xl border transition-all flex flex-col items-center justify-center gap-3 ${estiloBotao} ${finalizado ? 'cursor-default' : 'cursor-pointer'}`}
+                          >
+                            <span className={`w-12 h-12 rounded-full border flex items-center justify-center text-lg font-black transition-colors ${estiloLetra}`}>
+                              {revelarGabarito && gabarito === 'c' ? <CheckCircle2 className="w-6 h-6" /> : (revelarGabarito && marcada === 'c' && !acertou ? <XCircle className="w-6 h-6" /> : 'C')}
+                            </span>
+                            <span className="font-bold tracking-widest uppercase text-sm">Certo</span>
+                          </button>
+                        );
+                      })()}
 
-                    if (!revelarGabarito) {
-                      if (marcada === letra) {
-                        estiloBotao = "border-blue-500/50 bg-blue-500/10 text-blue-400";
-                        estiloLetra = "border-blue-500 bg-blue-500 text-black";
-                      } else {
-                        estiloBotao += " hover:border-white/20";
+                      {/* Botão ERRADO */}
+                      {(() => {
+                        let estiloBotao = "border-white/5 bg-[#09090b] text-zinc-400";
+                        let estiloLetra = "border-white/10 text-zinc-400";
+                        
+                        if (!revelarGabarito) {
+                          if (marcada === 'e') {
+                            estiloBotao = "border-blue-500/50 bg-blue-500/10 text-blue-400";
+                            estiloLetra = "border-blue-500 bg-blue-500 text-black";
+                          } else {
+                            estiloBotao += " hover:border-white/20";
+                          }
+                        } else {
+                          if (gabarito === 'e') {
+                            estiloBotao = "border-emerald-500/50 bg-emerald-500/10 text-emerald-500";
+                            estiloLetra = "border-emerald-500 bg-emerald-500 text-black";
+                          } else if (marcada === 'e' && !acertou) {
+                            estiloBotao = "border-red-500/50 bg-red-500/10 text-red-500";
+                            estiloLetra = "border-red-500 bg-red-500 text-black";
+                          } else {
+                            estiloBotao = "border-white/5 bg-[#09090b] opacity-40 text-zinc-600";
+                            estiloLetra = "border-white/5 text-zinc-700";
+                          }
+                        }
+
+                        return (
+                          <button 
+                            onClick={() => marcarAlternativa(questao.id, 'e')}
+                            disabled={finalizado}
+                            className={`w-full text-center p-6 rounded-2xl border transition-all flex flex-col items-center justify-center gap-3 ${estiloBotao} ${finalizado ? 'cursor-default' : 'cursor-pointer'}`}
+                          >
+                            <span className={`w-12 h-12 rounded-full border flex items-center justify-center text-lg font-black transition-colors ${estiloLetra}`}>
+                              {revelarGabarito && gabarito === 'e' ? <CheckCircle2 className="w-6 h-6" /> : (revelarGabarito && marcada === 'e' && !acertou ? <XCircle className="w-6 h-6" /> : 'E')}
+                            </span>
+                            <span className="font-bold tracking-widest uppercase text-sm">Errado</span>
+                          </button>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    /* MÚLTIPLA ESCOLHA */
+                    ['a', 'b', 'c', 'd', 'e'].map((letra) => {
+                      const alternativaTexto = questao[`alternativa_${letra}`];
+                      
+                      if (!alternativaTexto || String(alternativaTexto).trim().toLowerCase() === 'null' || String(alternativaTexto).trim() === '') {
+                        return null;
                       }
-                    } else {
-                      if (letra === gabarito) {
-                        estiloBotao = "border-emerald-500/50 bg-emerald-500/10 text-emerald-500";
-                        estiloLetra = "border-emerald-500 bg-emerald-500 text-black";
-                      } else if (marcada === letra && !acertou) {
-                        estiloBotao = "border-red-500/50 bg-red-500/10 text-red-500";
-                        estiloLetra = "border-red-500 bg-red-500 text-black";
-                      } else {
-                        estiloBotao = "border-white/5 bg-[#09090b] opacity-40 text-zinc-600";
-                        estiloLetra = "border-white/5 text-zinc-700";
-                      }
-                    }
 
-                    return (
-                      <button 
-                        key={letra}
-                        onClick={() => marcarAlternativa(questao.id, letra)}
-                        disabled={finalizado}
-                        className={`w-full text-left p-4 rounded-xl border transition-all flex items-start gap-4 ${estiloBotao} ${finalizado ? 'cursor-default' : 'cursor-pointer'}`}
-                      >
-                        <span className={`flex-shrink-0 w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold uppercase transition-colors ${estiloLetra}`}>
-                          {revelarGabarito && letra === gabarito ? <CheckCircle2 className="w-5 h-5" /> : (revelarGabarito && marcada === letra && !acertou ? <XCircle className="w-5 h-5" /> : letra)}
-                        </span>
-                        <span className="text-sm mt-1.5">{alternativaTexto}</span>
-                      </button>
-                    );
-                  })}
+                      let estiloBotao = "border-white/5 bg-[#09090b] text-zinc-400";
+                      let estiloLetra = "border-white/10 text-zinc-400";
+
+                      if (!revelarGabarito) {
+                        if (marcada === letra) {
+                          estiloBotao = "border-blue-500/50 bg-blue-500/10 text-blue-400";
+                          estiloLetra = "border-blue-500 bg-blue-500 text-black";
+                        } else {
+                          estiloBotao += " hover:border-white/20";
+                        }
+                      } else {
+                        if (letra === gabarito) {
+                          estiloBotao = "border-emerald-500/50 bg-emerald-500/10 text-emerald-500";
+                          estiloLetra = "border-emerald-500 bg-emerald-500 text-black";
+                        } else if (marcada === letra && !acertou) {
+                          estiloBotao = "border-red-500/50 bg-red-500/10 text-red-500";
+                          estiloLetra = "border-red-500 bg-red-500 text-black";
+                        } else {
+                          estiloBotao = "border-white/5 bg-[#09090b] opacity-40 text-zinc-600";
+                          estiloLetra = "border-white/5 text-zinc-700";
+                        }
+                      }
+
+                      return (
+                        <button 
+                          key={letra}
+                          onClick={() => marcarAlternativa(questao.id, letra)}
+                          disabled={finalizado}
+                          className={`w-full text-left p-4 rounded-xl border transition-all flex items-start gap-4 ${estiloBotao} ${finalizado ? 'cursor-default' : 'cursor-pointer'}`}
+                        >
+                          <span className={`flex-shrink-0 w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold uppercase transition-colors ${estiloLetra}`}>
+                            {revelarGabarito && letra === gabarito ? <CheckCircle2 className="w-5 h-5" /> : (revelarGabarito && marcada === letra && !acertou ? <XCircle className="w-5 h-5" /> : letra)}
+                          </span>
+                          <span className="text-sm mt-1.5">{alternativaTexto}</span>
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
 
                 {revelarGabarito && questao.comentario_gabarito && (
