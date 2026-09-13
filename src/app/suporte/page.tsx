@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { enviarAlertaTelegram } from "@/lib/telegram";
+import { dispararAlertaSuporte } from "@/lib/telegram";
 import { uploadImagensSuporte, montarMensagemComImagens } from "@/lib/uploadImagem";
 import AnexadorImagem from "@/components/AnexadorImagem";
 import MensagemComImagens from "@/components/MensagemComImagens";
@@ -121,7 +121,7 @@ export default function SuportePage() {
 
       if (erroSuporte) throw erroSuporte;
 
-      await enviarAlertaTelegram({ tipo: 'novo', nome: formData.nome, email: formData.email, categoria: formData.categoria, msg: formData.mensagem, questaoId: idDaQuestao || undefined, imagens: urlsImagens });
+      await dispararAlertaSuporte({ tipo: 'novo', nome: formData.nome, email: formData.email, categoria: formData.categoria, msg: formData.mensagem, questaoId: idDaQuestao || undefined, imagens: urlsImagens });
 
       setSucesso(true);
       setImagensNovas([]);
@@ -161,7 +161,7 @@ export default function SuportePage() {
 
       if (error) throw error;
 
-      await enviarAlertaTelegram({ tipo: 'reabertura', nome: chamado.nome || formData.nome, email: chamado.email || formData.email, categoria: chamado.categoria, msg: motivoReabertura, questaoId: chamado.questao_id || undefined });
+      await dispararAlertaSuporte({ tipo: 'reabertura', nome: chamado.nome || formData.nome, email: chamado.email || formData.email, categoria: chamado.categoria, msg: motivoReabertura, questaoId: chamado.questao_id || undefined });
 
       // Atualiza estado local
       setMeusChamados(prev => prev.map(c => c.id === chamado.id ? { ...c, status: 'pendente', mensagem: novaMensagem } : c));
@@ -190,7 +190,7 @@ export default function SuportePage() {
 
       if (error) throw error;
 
-      await enviarAlertaTelegram({ tipo: 'resposta', nome: chamado.nome || formData.nome, email: chamado.email || formData.email, categoria: chamado.categoria, msg: textoResposta || "Imagem anexada", questaoId: chamado.questao_id || undefined, imagens: urlsImagens });
+      await dispararAlertaSuporte({ tipo: 'resposta', nome: chamado.nome || formData.nome, email: chamado.email || formData.email, categoria: chamado.categoria, msg: textoResposta || "Imagem anexada", questaoId: chamado.questao_id || undefined, imagens: urlsImagens });
 
       setMeusChamados(prev => prev.map(c => c.id === chamado.id ? { ...c, mensagem: novaMensagem } : c));
       setRespondendoId(null);
