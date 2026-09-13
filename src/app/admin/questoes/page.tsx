@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { ehCampoFaltante } from '@/lib/metadados';
 import { Plus, Search, Edit, Trash2, Database, BookOpen, AlertCircle, Filter, Wand2, RefreshCcw } from 'lucide-react';
 import Link from 'next/link';
 
@@ -10,6 +11,7 @@ export default function BancoDeQuestoesAdmin() {
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState("");
   const [filtroTopico, setFiltroTopico] = useState("Todos");
+  const [qtdFaltantes, setQtdFaltantes] = useState(0);
 
   const [gerandoLote, setGerandoLote] = useState(false);
   const [progressoLote, setProgressoLote] = useState("");
@@ -28,6 +30,7 @@ export default function BancoDeQuestoesAdmin() {
 
       if (error) throw error;
       setQuestoes(data || []);
+      setQtdFaltantes((data || []).filter(q => ehCampoFaltante(q.orgao) || ehCampoFaltante(q.cargo)).length);
     } catch (error: any) {
       console.error("Erro interno ao carregar questões:", error);
     } finally {
@@ -160,6 +163,29 @@ export default function BancoDeQuestoesAdmin() {
             </Link>
           </div>
         </div>
+
+        {/* Banner: questões sem Cargo/Órgão */}
+        {qtdFaltantes > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-amber-500/10 border border-amber-500/25 rounded-2xl p-5">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-6 h-6 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-amber-400 uppercase tracking-widest">
+                  {qtdFaltantes} questões sem Cargo e/ou Órgão definido
+                </p>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Preencha em lote com sugestão da IA ou manualmente, agrupado por banca, matéria e ano.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/admin/questoes/metadados"
+              className="bg-amber-500 hover:bg-amber-400 text-black text-xs font-black uppercase tracking-widest px-5 py-3 rounded-xl transition-all flex items-center gap-2 shrink-0 w-fit"
+            >
+              <Wand2 className="w-4 h-4" /> Preencher em Lote
+            </Link>
+          </div>
+        )}
 
         {/* ÁREA DE FILTROS */}
         <div className="flex flex-col md:flex-row gap-4">
