@@ -5,14 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Filter, Sliders, Loader2, Zap, X, PenTool, History, Play, Trash2, AlertCircle, CheckCircle2, Clock, Flame, BookX } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-
-type TentativaResumo = {
-  simulado_id: string;
-  numero_tentativa: number | null;
-  total_acertos: number;
-  total_questoes: number;
-  data_conclusao: string;
-};
+import { TentativaResumo } from '@/lib/tipos';
 
 const MultiSelectBuscavel = ({ label, placeholder, opcoes, valores, setValores, disabled = false }: { label: string, placeholder: string, opcoes: {label: string, value: string}[], valores: string[], setValores: (v: string[]) => void, disabled?: boolean }) => {
   const [aberto, setAberto] = useState(false);
