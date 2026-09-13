@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Filter, Sliders, Loader2, Zap, X, PenTool, History, Play, Trash2, AlertCircle, CheckCircle2, Clock, Flame, BookX } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -68,28 +68,41 @@ const MultiSelectBuscavel = ({ label, placeholder, opcoes, valores, setValores, 
   );
 };
 
-const traduzirFormatoParaExibicao = (val: string) => {
-  if (val === 'certo_errado') return 'Certo ou Errado';
-  if (val === 'multipla_escolha') return 'Múltipla Escolha';
-  return val;
-};
-
 const traduzirFormatoParaBanco = (val: string) => {
   if (val === 'Certo ou Errado') return 'certo_errado';
   if (val === 'Múltipla Escolha') return 'multipla_escolha';
   return val;
 };
 
+type OpcaoFiltro = { valor: string; total: number };
+type OpcoesFiltro = {
+  bancas: OpcaoFiltro[];
+  cargos: OpcaoFiltro[];
+  materias: OpcaoFiltro[];
+  topicos: OpcaoFiltro[];
+  anos: OpcaoFiltro[];
+  formatos: OpcaoFiltro[];
+  total: number;
+};
+
+// Converte a resposta da RPC (valor + contagem) para o formato do MultiSelect
+const formatarOpcoes = (itens: OpcaoFiltro[] | undefined) =>
+  (itens || []).map(item => ({
+    label: `${item.valor} (${item.total})`,
+    value: item.valor
+  }));
+
 export default function GeradorSimulados() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [loadingHistorico, setLoadingHistorico] = useState(false);
   const [loadingErros, setLoadingErros] = useState(false);
-  
+  const [carregandoOpcoes, setCarregandoOpcoes] = useState(false);
+
   // Controle de Abas
   const [abaAtiva, setAbaAtiva] = useState<'gerar' | 'historico' | 'erros'>('gerar');
   const [historicoSimulados, setHistoricoSimulados] = useState<any[]>([]);
-  
+
   // 🚀 NOVO ESTADO: Dados do Caderno de Erros
   const [estatisticasErros, setEstatisticasErros] = useState({
     totalRespondidas: 0,
@@ -97,9 +110,12 @@ export default function GeradorSimulados() {
     questoesComErroIds: [] as string[]
   });
 
-  const [dadosBase, setDadosBase] = useState<any[]>([]);
-  const [questoesRespondidas, setQuestoesRespondidas] = useState<Set<string>>(new Set());
-  
+  // Opções e ids agora vêm do banco (views/RPCs), sem baixar a tabela inteira
+  const [opcoes, setOpcoes] = useState<OpcoesFiltro>({
+    bancas: [], cargos: [], materias: [], topicos: [], anos: [], formatos: [], total: 0
+  });
+  const [questoesDisponiveis, setQuestoesDisponiveis] = useState<string[]>([]);
+
   const [nomeSimulado, setNomeSimulado] = useState('');
   const [bancasSelecionadas, setBancasSelecionadas] = useState<string[]>([]);
   const [materiasSelecionadas, setMateriasSelecionadas] = useState<string[]>([]);
@@ -107,7 +123,7 @@ export default function GeradorSimulados() {
   const [cargosSelecionados, setCargosSelecionados] = useState<string[]>([]);
   const [formatosSelecionados, setFormatosSelecionados] = useState<string[]>([]);
   const [topicosSelecionados, setTopicosSelecionados] = useState<string[]>([]);
-  
+
   const [quantidadeQuestoes, setQuantidadeQuestoes] = useState(10);
   const [incluirRespondidas, setIncluirRespondidas] = useState(false);
 
@@ -122,19 +138,60 @@ export default function GeradorSimulados() {
     }
   }, []);
 
+  // Recarrega opções e ids disponíveis sempre que qualquer filtro mudar
   useEffect(() => {
-    async function carregarBaseDeDados() {
+    obterFiltros();
+  }, [
+    incluirRespondidas,
+    bancasSelecionadas,
+    cargosSelecionados,
+    materiasSelecionadas,
+    topicosSelecionados,
+    anosSelecionados,
+    formatosSelecionados
+  ]);
+
+  async function obterFiltros() {
+    try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: respostas } = await supabase.from('respostas_alunos').select('questao_id').eq('aluno_id', user.id);
-        if (respostas) setQuestoesRespondidas(new Set(respostas.map(r => r.questao_id)));
+      setCarregandoOpcoes(true);
+      let idsRespondidas: string[] = [];
+      if (!incluirRespondidas && user) {
+        const { data: respostas } = await supabase
+          .from('respostas_alunos')
+          .select('questao_id')
+          .eq('aluno_id', user.id);
+        idsRespondidas = respostas?.map(r => r.questao_id) || [];
       }
 
-      const { data, error } = await supabase.from('questoes').select('id, banca, materia, ano, cargo, topico, tipo_questao');
-      if (data && !error) setDadosBase(data);
+      const filtrosComum = {
+        p_bancas: bancasSelecionadas.length > 0 ? bancasSelecionadas : null,
+        p_cargos: cargosSelecionados.length > 0 ? cargosSelecionados : null,
+        p_materias: materiasSelecionadas.length > 0 ? materiasSelecionadas : null,
+        p_topicos: topicosSelecionados.length > 0 ? topicosSelecionados : null,
+        p_anos: anosSelecionados.length > 0 ? anosSelecionados : null,
+        p_formatos: formatosSelecionados.length > 0 ? formatosSelecionados.map(traduzirFormatoParaBanco) : null,
+        p_excluir_respondidas: idsRespondidas.length > 0 ? idsRespondidas : null
+      };
+
+      const [resultadoOpcoes, resultadoIds] = await Promise.all([
+        supabase.rpc('obter_opcoes_simulado', filtrosComum),
+        supabase.rpc('obter_ids_questoes', filtrosComum)
+      ]);
+
+      if (resultadoOpcoes.error) throw resultadoOpcoes.error;
+      if (resultadoIds.error) throw resultadoIds.error;
+
+      setOpcoes(resultadoOpcoes.data || {
+        bancas: [], cargos: [], materias: [], topicos: [], anos: [], formatos: [], total: 0
+      });
+      setQuestoesDisponiveis((resultadoIds.data || []).map((r: { questao_id: string }) => r.questao_id));
+    } catch (error) {
+      console.error("Erro ao carregar filtros:", error);
+    } finally {
+      setCarregandoOpcoes(false);
     }
-    carregarBaseDeDados();
-  }, []);
+  }
 
   useEffect(() => {
     if (abaAtiva === 'historico') carregarHistorico();
@@ -187,30 +244,24 @@ export default function GeradorSimulados() {
     }
   }
 
-  // 🚀 LÓGICA DE CARREGAMENTO DO CADERNO DE ERROS
+  // 🚀 LÓGICA DE CARREGAMENTO DO CADERNO DE ERROS (agregada na RPC)
   async function carregarDadosErros() {
     setLoadingErros(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data, error } = await supabase
-        .from('respostas_alunos')
-        .select('questao_id, foi_correta')
-        .eq('aluno_id', user.id);
+      const { data: idsErrados, error: erroIds } = await supabase.rpc('obter_caderno_erros', { p_aluno: user.id });
+      if (erroIds) throw erroIds;
 
-      if (error) throw error;
+      const { data: stats, error: erroStats } = await supabase.rpc('obter_estatisticas_aluno', { p_aluno: user.id });
+      if (erroStats) throw erroStats;
 
-      if (data) {
-        // Filtra apenas as questões que ele errou
-        const erradasUnicas = new Set(data.filter(r => r.foi_correta === false).map(r => r.questao_id));
-        
-        setEstatisticasErros({
-          totalRespondidas: data.length,
-          totalErros: erradasUnicas.size,
-          questoesComErroIds: Array.from(erradasUnicas)
-        });
-      }
+      setEstatisticasErros({
+        totalRespondidas: stats?.[0]?.total_respondidas || 0,
+        totalErros: (idsErrados || []).length,
+        questoesComErroIds: (idsErrados || []).map((r: { questao_id: string }) => r.questao_id)
+      });
     } catch (error) {
       console.error("Erro ao carregar caderno de erros:", error);
     } finally {
@@ -231,68 +282,6 @@ export default function GeradorSimulados() {
       alert("Erro ao excluir o simulado.");
     }
   }
-
-  // ... (useMemo configs mantidos sem alteração para o gerador principal)
-  const opcoes = useMemo(() => {
-    const obterBaseFiltrada = (filtroIgnorado: string) => {
-      let pool = dadosBase;
-      if (!incluirRespondidas) pool = pool.filter(q => !questoesRespondidas.has(q.id));
-
-      if (filtroIgnorado !== 'bancas' && bancasSelecionadas.length > 0) pool = pool.filter(q => bancasSelecionadas.includes(q.banca?.trim()));
-      if (filtroIgnorado !== 'cargos' && cargosSelecionados.length > 0) pool = pool.filter(q => cargosSelecionados.includes(q.cargo?.trim()));
-      if (filtroIgnorado !== 'materias' && materiasSelecionadas.length > 0) pool = pool.filter(q => materiasSelecionadas.includes(q.materia?.trim()));
-      if (filtroIgnorado !== 'topicos' && topicosSelecionados.length > 0) pool = pool.filter(q => topicosSelecionados.includes(q.topico?.trim()));
-      if (filtroIgnorado !== 'anos' && anosSelecionados.length > 0) pool = pool.filter(q => anosSelecionados.includes(String(q.ano)));
-      if (filtroIgnorado !== 'formatos' && formatosSelecionados.length > 0) {
-        const f = formatosSelecionados.map(traduzirFormatoParaBanco);
-        pool = pool.filter(q => f.includes(q.tipo_questao?.trim()));
-      }
-      return pool;
-    };
-
-    const gerarDropdown = (chave: string, pool: any[]) => {
-      const counts = pool.reduce((acc, q) => {
-        let rawVal = q[chave];
-        if (!rawVal) return acc;
-
-        let val = '';
-        if (chave === 'tipo_questao') val = traduzirFormatoParaExibicao(String(rawVal).trim());
-        else if (chave === 'ano') val = String(rawVal);
-        else val = String(rawVal).trim();
-
-        if (val && val.toLowerCase() !== 'null') acc[val] = (acc[val] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-
-      return Object.keys(counts)
-        .sort((a, b) => chave === 'ano' ? Number(b) - Number(a) : a.localeCompare(b))
-        .map(k => ({ label: `${k} (${counts[k]})`, value: k }));
-    };
-
-    return {
-      bancas: gerarDropdown('banca', obterBaseFiltrada('bancas')),
-      cargos: gerarDropdown('cargo', obterBaseFiltrada('cargos')),
-      materias: gerarDropdown('materia', obterBaseFiltrada('materias')),
-      topicos: materiasSelecionadas.length > 0 ? gerarDropdown('topico', obterBaseFiltrada('topicos')) : [],
-      anos: gerarDropdown('ano', obterBaseFiltrada('anos')),
-      formatos: gerarDropdown('tipo_questao', obterBaseFiltrada('formatos')),
-    };
-  }, [dadosBase, bancasSelecionadas, cargosSelecionados, materiasSelecionadas, topicosSelecionados, anosSelecionados, formatosSelecionados, incluirRespondidas, questoesRespondidas]);
-
-  const questoesDisponiveis = useMemo(() => {
-    let pool = dadosBase;
-    if (!incluirRespondidas) pool = pool.filter(q => !questoesRespondidas.has(q.id));
-    if (bancasSelecionadas.length > 0) pool = pool.filter(q => bancasSelecionadas.includes(q.banca?.trim()));
-    if (cargosSelecionados.length > 0) pool = pool.filter(q => cargosSelecionados.includes(q.cargo?.trim()));
-    if (materiasSelecionadas.length > 0) pool = pool.filter(q => materiasSelecionadas.includes(q.materia?.trim()));
-    if (topicosSelecionados.length > 0) pool = pool.filter(q => topicosSelecionados.includes(q.topico?.trim()));
-    if (anosSelecionados.length > 0) pool = pool.filter(q => anosSelecionados.includes(String(q.ano)));
-    if (formatosSelecionados.length > 0) {
-      const f = formatosSelecionados.map(traduzirFormatoParaBanco);
-      pool = pool.filter(q => f.includes(q.tipo_questao?.trim()));
-    }
-    return pool.map(q => q.id);
-  }, [dadosBase, bancasSelecionadas, cargosSelecionados, materiasSelecionadas, topicosSelecionados, anosSelecionados, formatosSelecionados, incluirRespondidas, questoesRespondidas]);
 
   const gerarSimulado = async (listaIdsParaGerar: string[] = questoesDisponiveis, tituloPersonalizado?: string) => {
     setLoading(true);
@@ -423,24 +412,33 @@ export default function GeradorSimulados() {
                   </h3>
                   
                   <div className="bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-lg text-blue-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all">
-                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                    {questoesDisponiveis.length} questões disponíveis
+                    {carregandoOpcoes ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>Calculando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                        {questoesDisponiveis.length} questões disponíveis
+                      </>
+                    )}
                   </div>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <MultiSelectBuscavel label="Banca" placeholder="Ex: FGV, VUNESP" opcoes={opcoes.bancas} valores={bancasSelecionadas} setValores={setBancasSelecionadas} />
-                  <MultiSelectBuscavel label="Cargo" placeholder="Ex: Analista" opcoes={opcoes.cargos} valores={cargosSelecionados} setValores={setCargosSelecionados} />
+                  <MultiSelectBuscavel label="Banca" placeholder="Ex: FGV, VUNESP" opcoes={formatarOpcoes(opcoes.bancas)} valores={bancasSelecionadas} setValores={setBancasSelecionadas} />
+                  <MultiSelectBuscavel label="Cargo" placeholder="Ex: Analista" opcoes={formatarOpcoes(opcoes.cargos)} valores={cargosSelecionados} setValores={setCargosSelecionados} />
                   
                   <div className="col-span-1 md:col-span-2 h-px bg-white/5 my-2"></div>
                   
-                  <MultiSelectBuscavel label="Matérias" placeholder="Ex: Direito Administrativo" opcoes={opcoes.materias} valores={materiasSelecionadas} setValores={setMateriasSelecionadas} />
-                  <MultiSelectBuscavel label="Tópicos" placeholder="Ex: Atos Administrativos" opcoes={opcoes.topicos} valores={topicosSelecionados} setValores={setTopicosSelecionados} disabled={materiasSelecionadas.length === 0} />
+                  <MultiSelectBuscavel label="Matérias" placeholder="Ex: Direito Administrativo" opcoes={formatarOpcoes(opcoes.materias)} valores={materiasSelecionadas} setValores={setMateriasSelecionadas} />
+                  <MultiSelectBuscavel label="Tópicos" placeholder="Ex: Atos Administrativos" opcoes={formatarOpcoes(opcoes.topicos)} valores={topicosSelecionados} setValores={setTopicosSelecionados} disabled={materiasSelecionadas.length === 0} />
                   
                   <div className="col-span-1 md:col-span-2 h-px bg-white/5 my-2"></div>
 
-                  <MultiSelectBuscavel label="Anos" placeholder="Ex: 2024, 2023" opcoes={opcoes.anos} valores={anosSelecionados} setValores={setAnosSelecionados} />
-                  <MultiSelectBuscavel label="Formatos" placeholder="Ex: Múltipla Escolha" opcoes={opcoes.formatos} valores={formatosSelecionados} setValores={setFormatosSelecionados} />
+                  <MultiSelectBuscavel label="Anos" placeholder="Ex: 2024, 2023" opcoes={formatarOpcoes(opcoes.anos)} valores={anosSelecionados} setValores={setAnosSelecionados} />
+                  <MultiSelectBuscavel label="Formatos" placeholder="Ex: Múltipla Escolha" opcoes={formatarOpcoes(opcoes.formatos)} valores={formatosSelecionados} setValores={setFormatosSelecionados} />
                 </div>
               </div>
 
@@ -481,7 +479,7 @@ export default function GeradorSimulados() {
 
               <button 
                 onClick={() => gerarSimulado()}
-                disabled={loading || questoesDisponiveis.length === 0}
+                disabled={loading || carregandoOpcoes || questoesDisponiveis.length === 0}
                 className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed text-white font-black uppercase text-sm tracking-widest py-6 rounded-2xl flex items-center justify-center gap-3 transition-colors mt-8 shadow-xl shadow-blue-900/20"
               >
                 {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Zap className="w-6 h-6" /> Gerar Prova e Começar</>}

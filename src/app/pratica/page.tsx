@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Filter, Search, Loader2, BookOpen, CheckCircle2, XCircle, MessageSquare } from 'lucide-react';
+import { Filter, Search, Loader2, BookOpen, CheckCircle2, XCircle, MessageSquare, ChevronDown } from 'lucide-react';
+
+const TAMANHO_PAGINA = 15;
 
 const DropdownBuscavel = ({ label, placeholder, opcoes, valor, setValor, disabled = false }: { label: string, placeholder: string, opcoes: any[], valor: string, setValor: (v: string) => void, disabled?: boolean }) => {
   const [aberto, setAberto] = useState(false);
@@ -60,13 +62,12 @@ const DropdownBuscavel = ({ label, placeholder, opcoes, valor, setValor, disable
 export default function BancoDeQuestoes() {
   const [questoes, setQuestoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Guardamos os dados brutos para cruzar Matéria x Tópico localmente
-  const [dadosBase, setDadosBase] = useState<any[]>([]);
-  
-  const [opcoes, setOpcoes] = useState({ 
-    bancas: [] as string[], 
-    materias: [] as string[], 
+  const [carregandoMais, setCarregandoMais] = useState(false);
+  const [totalResultados, setTotalResultados] = useState(0);
+
+  const [opcoes, setOpcoes] = useState({
+    bancas: [] as string[],
+    materias: [] as string[],
     anos: [] as number[],
     cargos: [] as string[],
     formatos: [] as string[],
@@ -83,48 +84,67 @@ export default function BancoDeQuestoes() {
   const [selecoes, setSelecoes] = useState<Record<string, string>>({});
   const [respostas, setRespostas] = useState<Record<string, { marcada: string; correta: boolean }>>({});
 
-  // 1. Carrega todos os filtros disponíveis ao abrir a página
+  // 1. Carrega as opções de filtro a partir da view agregada (sem baixar a tabela inteira)
   useEffect(() => {
     async function carregarOpcoesFiltro() {
       const { data, error } = await supabase
-        .from('questoes')
-        .select('banca, materia, ano, cargo, topico, tipo_questao');
-        
+        .from('vw_opcoes_filtro')
+        .select('tipo, valor, total');
+
       if (data && !error) {
-        setDadosBase(data);
-        setOpcoes(prev => ({
-          ...prev,
-          bancas: [...new Set(data.map(q => q.banca?.trim()).filter(Boolean))].sort() as string[], 
-          materias: [...new Set(data.map(q => q.materia?.trim()).filter(Boolean))].sort() as string[], 
-          anos: [...new Set(data.map(q => q.ano).filter(Boolean))].sort((a, b) => b - a) as number[],
-          cargos: [...new Set(data.map(q => q.cargo?.trim()).filter(Boolean))].sort() as string[],
-          formatos: [...new Set(data.map(q => q.tipo_questao?.trim()).filter(Boolean))].sort() as string[]
-        }));
+        const valoresDe = (tipo: string) =>
+          data
+            .filter((r: { tipo: string; valor: string | null }) => r.tipo === tipo && r.valor)
+            .map((r: { valor: string }) => String(r.valor).trim())
+            .filter(Boolean);
+
+        setOpcoes({
+          bancas: [...new Set(valoresDe('banca'))].sort(),
+          materias: [...new Set(valoresDe('materia'))].sort(),
+          anos: [...new Set(valoresDe('ano').map(v => parseInt(v)))].filter(n => !isNaN(n)).sort((a, b) => b - a),
+          cargos: [...new Set(valoresDe('cargo'))].sort(),
+          formatos: [...new Set(valoresDe('tipo_questao'))].sort(),
+          topicos: []
+        });
       }
     }
     carregarOpcoesFiltro();
   }, []);
 
-  // 2. Atualiza a lista de Tópicos SEMPRE que a Matéria mudar
+  // 2. Atualiza a lista de Tópicos SEMPRE que a Matéria mudar (view de cascade)
   useEffect(() => {
     if (materiaSelecionada) {
-      const topicosDaMateria = dadosBase
-        .filter(q => q.materia?.trim() === materiaSelecionada)
-        .map(q => q.topico?.trim())
-        .filter(Boolean);
-      
-      setOpcoes(prev => ({ ...prev, topicos: [...new Set(topicosDaMateria)].sort() as string[] }));
+      supabase
+        .from('vw_topico_por_materia')
+        .select('topico')
+        .eq('materia', materiaSelecionada)
+        .order('topico')
+        .then(({ data }) => {
+          setOpcoes(prev => ({
+            ...prev,
+            topicos: (data || []).map((r: { topico: string | null }) => String(r.topico).trim()).filter(Boolean)
+          }));
+        });
     } else {
-      setTopicoSelecionado(''); 
+      setTopicoSelecionado('');
       setOpcoes(prev => ({ ...prev, topicos: [] }));
     }
-  }, [materiaSelecionada, dadosBase]);
+  }, [materiaSelecionada]);
 
-  const buscarQuestoes = async () => {
-    setLoading(true);
+  const buscarQuestoes = async (pagina = 0) => {
+    if (pagina === 0) setLoading(true);
+    else setCarregandoMais(true);
+
     try {
-      let query = supabase.from('questoes').select('*').limit(15);
-      
+      const inicio = pagina * TAMANHO_PAGINA;
+      const fim = inicio + TAMANHO_PAGINA - 1;
+
+      let query = supabase
+        .from('questoes')
+        .select('*', { count: 'exact' })
+        .order('id')
+        .range(inicio, fim);
+
       if (bancaSelecionada) query = query.eq('banca', bancaSelecionada);
       if (materiaSelecionada) query = query.eq('materia', materiaSelecionada);
       if (anoSelecionado) query = query.eq('ano', parseInt(anoSelecionado));
@@ -132,13 +152,16 @@ export default function BancoDeQuestoes() {
       if (topicoSelecionado) query = query.eq('topico', topicoSelecionado);
       if (formatoSelecionado) query = query.eq('tipo_questao', formatoSelecionado);
 
-      const { data, error } = await query;
+      const { data, count, error } = await query;
       if (error) throw error;
-      if (data) setQuestoes(data);
+
+      setQuestoes(prev => (pagina === 0 ? data || [] : [...prev, ...(data || [])]));
+      setTotalResultados(count || 0);
     } catch (error) {
       console.error("Erro ao buscar questões:", error);
     } finally {
       setLoading(false);
+      setCarregandoMais(false);
     }
   };
 
@@ -213,9 +236,14 @@ export default function BancoDeQuestoes() {
                   <DropdownBuscavel label="Formato" placeholder="Ex: Múltipla" opcoes={opcoes.formatos} valor={formatoSelecionado} setValor={setFormatoSelecionado} />
                 </div>
 
-                <button onClick={buscarQuestoes} className="w-full mt-6 bg-emerald-600 hover:bg-emerald-500 text-black font-black uppercase text-[10px] tracking-widest py-4 rounded-xl flex items-center justify-center gap-2 transition-colors">
+                <button onClick={() => buscarQuestoes(0)} className="w-full mt-6 bg-emerald-600 hover:bg-emerald-500 text-black font-black uppercase text-[10px] tracking-widest py-4 rounded-xl flex items-center justify-center gap-2 transition-colors">
                   <Search className="w-4 h-4" /> Aplicar Filtros
                 </button>
+                {(totalResultados > 0 || questoes.length > 0) && (
+                  <p className="text-center text-[10px] font-bold uppercase tracking-widest text-zinc-500 mt-4">
+                    {totalResultados} {totalResultados === 1 ? 'questão encontrada' : 'questões encontradas'}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -329,6 +357,19 @@ export default function BancoDeQuestoes() {
                 <BookOpen className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-zinc-300">Nenhuma questão encontrada</h3>
                 <p className="text-sm text-zinc-500 mt-2">Ajuste os filtros para ver mais resultados.</p>
+              </div>
+            )}
+
+            {questoes.length > 0 && questoes.length < totalResultados && (
+              <div className="flex justify-center mt-8">
+                <button
+                  onClick={() => buscarQuestoes(Math.ceil(questoes.length / TAMANHO_PAGINA))}
+                  disabled={carregandoMais}
+                  className="px-8 py-3 bg-white/5 hover:bg-white/10 disabled:opacity-50 text-zinc-300 font-black uppercase text-[10px] tracking-widest rounded-xl transition-colors flex items-center gap-2 border border-white/10"
+                >
+                  {carregandoMais ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronDown className="w-4 h-4" />}
+                  Carregar mais
+                </button>
               </div>
             )}
           </div>

@@ -28,14 +28,12 @@ export default function Dashboard() {
           const nome = user.user_metadata?.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'Aluno';
           setNomeAluno(nome.charAt(0).toUpperCase() + nome.slice(1));
 
-          const { data: respostas } = await supabase
-            .from('respostas_alunos')
-            .select('foi_correta')
-            .eq('aluno_id', user.id);
+          const { data: stats } = await supabase.rpc('obter_estatisticas_aluno', { p_aluno: user.id });
 
-          if (respostas && respostas.length > 0) {
-            const totalResolvidas = respostas.length;
-            const totalAcertos = respostas.filter(r => r.foi_correta).length;
+          const totalResolvidas = stats?.[0]?.total_respondidas || 0;
+          const totalAcertos = stats?.[0]?.total_acertos || 0;
+
+          if (totalResolvidas > 0) {
             const percentual = Math.round((totalAcertos / totalResolvidas) * 100);
 
             setStatsAluno({
@@ -48,11 +46,11 @@ export default function Dashboard() {
 
         const { count: countQuestoes } = await supabase
           .from('questoes')
-          .select('*', { count: 'exact', head: true });
+          .select('*', { count: 'estimated', head: true });
 
         const { count: countSimulados } = await supabase
           .from('simulados')
-          .select('*', { count: 'exact', head: true })
+          .select('*', { count: 'estimated', head: true })
           .eq('tipo', 'tematico_professor')
           .eq('visivel', true);
 
