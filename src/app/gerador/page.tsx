@@ -6,6 +6,14 @@ import { Filter, Sliders, Loader2, Zap, X, PenTool, History, Play, Trash2, Alert
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+type TentativaResumo = {
+  simulado_id: string;
+  numero_tentativa: number | null;
+  total_acertos: number;
+  total_questoes: number;
+  data_conclusao: string;
+};
+
 const MultiSelectBuscavel = ({ label, placeholder, opcoes, valores, setValores, disabled = false }: { label: string, placeholder: string, opcoes: {label: string, value: string}[], valores: string[], setValores: (v: string[]) => void, disabled?: boolean }) => {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState('');
@@ -160,7 +168,8 @@ export default function GeradorSimulados() {
         const { data: respostas } = await supabase
           .from('respostas_alunos')
           .select('questao_id')
-          .eq('aluno_id', user.id);
+          .eq('aluno_id', user.id)
+          .not('alternativa_marcada', 'is', null);
         idsRespondidas = respostas?.map(r => r.questao_id) || [];
       }
 
@@ -218,22 +227,28 @@ export default function GeradorSimulados() {
 
       if (error) throw error;
 
-      const { data: respostasSalvas } = await supabase
-        .from('respostas_alunos')
-        .select('simulado_id')
-        .eq('aluno_id', user.id);
-      
-      const simuladosConcluidos = new Set(respostasSalvas?.map(r => r.simulado_id));
+      const { data: tentativas } = await supabase
+        .from('historico_tentativas')
+        .select('simulado_id, numero_tentativa, total_acertos, total_questoes, data_conclusao')
+        .eq('aluno_id', user.id)
+        .order('data_conclusao', { ascending: true });
+
+      const tentativasPorSimulado: Record<string, TentativaResumo[]> = {};
+      ((tentativas || []) as TentativaResumo[]).forEach(t => {
+        if (!tentativasPorSimulado[t.simulado_id]) tentativasPorSimulado[t.simulado_id] = [];
+        tentativasPorSimulado[t.simulado_id].push(t);
+      });
 
       const simuladosComStatus = (simulados || []).map(simulado => {
-        const isConcluido = simuladosConcluidos.has(simulado.id);
+        const tentativasSimulado = tentativasPorSimulado[simulado.id] || [];
+        const isConcluido = tentativasSimulado.length > 0;
         const isEmAndamento = typeof window !== 'undefined' && !!localStorage.getItem(`simulado_progresso_${simulado.id}`);
         
         let status = 'novo';
         if (isConcluido) status = 'concluido';
         else if (isEmAndamento) status = 'andamento';
 
-        return { ...simulado, status };
+        return { ...simulado, status, tentativas: tentativasSimulado };
       });
 
       setHistoricoSimulados(simuladosComStatus);
@@ -506,6 +521,7 @@ export default function GeradorSimulados() {
             ) : (
               <div className="space-y-4">
                 {historicoSimulados.map((simulado) => {
+                  const tentativasSimulado: TentativaResumo[] = simulado.tentativas || [];
                   const qtdQuestoes = simulado.simulado_questoes[0]?.count || 0;
                   const dataFormatada = new Date(simulado.criado_em).toLocaleDateString('pt-BR');
 
@@ -543,6 +559,25 @@ export default function GeradorSimulados() {
                         <p className="text-sm font-medium text-blue-400">
                           {qtdQuestoes} Questões
                         </p>
+
+                        {tentativasSimulado.length > 0 && (
+                          <div className="mt-3 flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mr-1">Evolução:</span>
+                            {tentativasSimulado.map((t, i) => {
+                              const pct = t.total_questoes > 0 ? Math.round((t.total_acertos / t.total_questoes) * 100) : 0;
+                              const corBarra = pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500';
+                              return (
+                                <span key={i} className="inline-flex items-center gap-2 bg-white/5 border border-white/5 px-2 py-1.5 rounded-md">
+                                  <span className="text-[10px] font-black text-zinc-400">T{t.numero_tentativa || i + 1}</span>
+                                  <span className="h-1.5 w-16 rounded-full bg-white/10 overflow-hidden">
+                                    <span className={`block h-full rounded-full ${corBarra}`} style={{ width: `${pct}%` }} />
+                                  </span>
+                                  <span className="text-[10px] font-black text-zinc-300">{pct}%</span>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-3 shrink-0">

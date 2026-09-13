@@ -3,7 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useParams, useRouter } from 'next/navigation';
-import { Loader2, CheckCircle2, XCircle, ArrowLeft, MessageSquare, Clock, Hash, Copy, Check } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, ArrowLeft, MessageSquare, Clock, Hash, Copy, Check, RotateCcw } from 'lucide-react';
+
+type Tentativa = {
+  numero_tentativa: number | null;
+  total_acertos: number;
+  total_questoes: number;
+  data_conclusao: string;
+};
 
 export default function ResolucaoSimulado() {
   const params = useParams();
@@ -20,6 +27,40 @@ export default function ResolucaoSimulado() {
   const [finalizado, setFinalizado] = useState(false);
   const [resultado, setResultado] = useState({ acertos: 0, erros: 0, brancos: 0, notaFinal: 0 });
   const [idCopiado, setIdCopiado] = useState('');
+  const [tentativas, setTentativas] = useState<Tentativa[]>([]);
+  const [refazendo, setRefazendo] = useState(false);
+
+  const formatarDataTentativa = (dataIso: string) => {
+    const d = new Date(dataIso);
+    return `${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+  };
+
+  const refazerSimulado = async () => {
+    if (!confirm("Refazer a prova descarta suas respostas atuais e inicia uma nova tentativa. Deseja continuar?")) return;
+    setRefazendo(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { error } = await supabase
+          .from('respostas_alunos')
+          .delete()
+          .eq('simulado_id', simuladoId)
+          .eq('aluno_id', user.id);
+        if (error) throw error;
+      }
+      localStorage.removeItem(`simulado_progresso_${simuladoId}`);
+      setRespostas({});
+      setResultado({ acertos: 0, erros: 0, brancos: 0, notaFinal: 0 });
+      setTentativas([]);
+      setFinalizado(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error) {
+      console.error("Erro ao refazer simulado:", error);
+      alert("Não foi possível iniciar uma nova tentativa. Tente novamente.");
+    } finally {
+      setRefazendo(false);
+    }
+  };
 
   const copiarQuestaoId = async (questaoId: string) => {
     try {
@@ -85,11 +126,19 @@ export default function ResolucaoSimulado() {
               if (notaFinal < 0) notaFinal = 0;
             }
 
+            const { data: tentativasSalvas } = await supabase
+              .from('historico_tentativas')
+              .select('numero_tentativa, total_acertos, total_questoes, data_conclusao')
+              .eq('simulado_id', simuladoId)
+              .eq('aluno_id', user.id)
+              .order('data_conclusao', { ascending: true });
+
             setRespostas(respostasFormatadas);
             setResultado({ acertos, erros, brancos, notaFinal });
+            setTentativas((tentativasSalvas || []) as Tentativa[]);
             setFinalizado(true);
             setLoading(false);
-            return; 
+            return;
           }
         }
 
@@ -135,7 +184,7 @@ export default function ResolucaoSimulado() {
 
     const respostasParaSalvar = questoes.map(questao => {
       const marcada = respostas[questao.id];
-      const gabarito = questao.gabarito.toLowerCase();
+      const gabarito = (questao.gabarito || '').toLowerCase();
       
       let foiCorreta = false;
 
@@ -165,26 +214,43 @@ export default function ResolucaoSimulado() {
 
     setResultado({ acertos, erros, brancos, notaFinal });
 
+    let entregaSalva = true;
     if (user) {
       try {
-        await supabase.from('respostas_alunos').insert(respostasParaSalvar);
-        
-        await supabase.from('historico_tentativas').insert({
+        const { count: tentativasExistentes } = await supabase
+          .from('historico_tentativas')
+          .select('id', { count: 'exact', head: true })
+          .eq('aluno_id', user.id)
+          .eq('simulado_id', simuladoId);
+
+        const { error: erroRespostas } = await supabase.from('respostas_alunos').insert(respostasParaSalvar);
+        if (erroRespostas) throw erroRespostas;
+
+        const { error: erroTentativa } = await supabase.from('historico_tentativas').insert({
           aluno_id: user.id,
           simulado_id: simuladoId,
+          numero_tentativa: (tentativasExistentes || 0) + 1,
           total_questoes: questoes.length,
-          total_acertos: acertos
+          total_acertos: acertos,
+          data_conclusao: new Date().toISOString()
         });
+        if (erroTentativa) throw erroTentativa;
 
         localStorage.removeItem(`simulado_progresso_${simuladoId}`);
       } catch (error) {
+        entregaSalva = false;
         console.error("Erro ao salvar entrega:", error);
       }
     }
 
-    setFinalizado(true);
     setFinalizando(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    if (entregaSalva) {
+      setFinalizado(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      alert("Não foi possível registrar sua entrega. Tente novamente.");
+    }
   };
 
   if (loading) {
@@ -272,6 +338,36 @@ export default function ResolucaoSimulado() {
                 <span className="text-4xl font-black text-blue-500">{resultado.notaFinal} <span className="text-lg text-zinc-500">pontos líquidos</span></span>
               </div>
             )}
+
+            {tentativas.length > 0 && (
+              <div className="mt-8 pt-6 border-t border-white/5 text-left">
+                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4">Suas tentativas</h3>
+                <div className="space-y-2">
+                  {tentativas.map((t, index) => {
+                    const pct = t.total_questoes > 0 ? Math.round((t.total_acertos / t.total_questoes) * 100) : 0;
+                    return (
+                      <div key={index} className="flex flex-wrap items-center justify-between gap-2 bg-[#09090b] border border-white/5 px-4 py-3 rounded-xl">
+                        <span className="text-sm font-bold text-white">Tentativa {t.numero_tentativa || index + 1}</span>
+                        <span className="text-xs text-zinc-500">{formatarDataTentativa(t.data_conclusao)}</span>
+                        <span className="text-sm font-black text-emerald-500">
+                          {t.total_acertos}/{t.total_questoes}
+                          <span className="text-zinc-500 font-bold"> · {pct}%</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={refazerSimulado}
+              disabled={refazendo}
+              className="mt-8 bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors flex items-center gap-2 mx-auto disabled:opacity-50"
+            >
+              {refazendo ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+              Refazer Prova
+            </button>
           </div>
         )}
 
