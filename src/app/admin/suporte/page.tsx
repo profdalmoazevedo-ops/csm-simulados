@@ -4,8 +4,67 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   LifeBuoy, Clock, CheckCircle2, AlertCircle, 
-  Trash2, Play, Check, Search, Mail, User
+  Trash2, Play, Check, Search, Mail, User, MessageSquare, RotateCcw
 } from 'lucide-react';
+
+interface BlocoHistorico {
+  tipo: 'original' | 'resposta' | 'reaberto';
+  texto: string;
+}
+
+function parseHistorico(mensagem: string): BlocoHistorico[] {
+  const blocos: BlocoHistorico[] = [];
+  let pendente = '';
+  for (const bloco of mensagem.split('\n\n')) {
+    if (bloco.startsWith('[RESPOSTA DO ALUNO]')) {
+      if (pendente) { blocos.push({ tipo: 'original', texto: pendente.trim() }); pendente = ''; }
+      blocos.push({ tipo: 'resposta', texto: bloco.replace('[RESPOSTA DO ALUNO]\n', '').trim() });
+    } else if (bloco.startsWith('[REABERTO PELO ALUNO]')) {
+      if (pendente) { blocos.push({ tipo: 'original', texto: pendente.trim() }); pendente = ''; }
+      blocos.push({ tipo: 'reaberto', texto: bloco.replace('[REABERTO PELO ALUNO]\n', '').trim() });
+    } else {
+      pendente = pendente ? `${pendente}\n\n${bloco}` : bloco;
+    }
+  }
+  if (pendente) blocos.push({ tipo: 'original', texto: pendente.trim() });
+  return blocos;
+}
+
+function HistoricoMensagem({ mensagem }: { mensagem: string }) {
+  const blocos = parseHistorico(mensagem);
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest">Histórico do Chamado:</p>
+      {blocos.map((b, i) => {
+        if (b.tipo === 'original') {
+          return (
+            <p key={`${b.tipo}-${i}`} className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">
+              {b.texto}
+            </p>
+          );
+        }
+        if (b.tipo === 'resposta') {
+          return (
+            <div key={`${b.tipo}-${i}`} className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4">
+              <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <MessageSquare className="w-3.5 h-3.5" /> Resposta do Aluno
+              </p>
+              <p className="text-sm text-blue-100/80 leading-relaxed whitespace-pre-wrap">{b.texto}</p>
+            </div>
+          );
+        }
+        return (
+          <div key={`${b.tipo}-${i}`} className="bg-amber-500/5 border border-amber-500/10 rounded-xl p-4">
+            <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+              <RotateCcw className="w-3.5 h-3.5" /> Reaberto pelo Aluno
+            </p>
+            <p className="text-sm text-amber-100/80 leading-relaxed whitespace-pre-wrap">{b.texto}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function GestaoSuporteAdmin() {
   const [chamados, setChamados] = useState<any[]>([]);
@@ -18,10 +77,12 @@ export default function GestaoSuporteAdmin() {
 
   useEffect(() => {
     carregarChamados();
+    const intervalo = setInterval(() => carregarChamados(true), 30000);
+    return () => clearInterval(intervalo);
   }, []);
 
-  async function carregarChamados() {
-    setLoading(true);
+  async function carregarChamados(silencioso = false) {
+    if (!silencioso) setLoading(true);
     try {
       const { data, error } = await supabase
         .from('chamados_suporte')
@@ -41,7 +102,7 @@ export default function GestaoSuporteAdmin() {
     } catch (err) {
       console.error("Erro ao carregar chamados:", err);
     } finally {
-      setLoading(false);
+      if (!silencioso) setLoading(false);
     }
   }
 
@@ -167,6 +228,16 @@ export default function GestaoSuporteAdmin() {
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5">
                 <div className="flex flex-wrap items-center gap-3">
                   {getStatusBadge(chamado.status)} 
+                  {chamado.mensagem?.includes('[REABERTO PELO ALUNO]') && (
+                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2.5 py-1.5 rounded-md border border-amber-500/20 flex items-center gap-1">
+                      <RotateCcw className="w-3 h-3" /> Reaberto pelo aluno
+                    </span>
+                  )}
+                  {chamado.mensagem?.includes('[RESPOSTA DO ALUNO]') && (
+                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 bg-blue-500/10 px-2.5 py-1.5 rounded-md border border-blue-500/20 flex items-center gap-1">
+                      <MessageSquare className="w-3 h-3" /> Resposta do aluno
+                    </span>
+                  )}
                   <span className="text-xs font-bold text-white uppercase tracking-widest bg-white/5 px-3 py-1.5 rounded-md border border-white/5">
                     {chamado.categoria}
                   </span>
@@ -198,9 +269,15 @@ export default function GestaoSuporteAdmin() {
               </div>
 
               <div className="bg-[#09090b] p-5 rounded-xl border border-white/5 mb-5">
-                <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest mb-2">Mensagem do Aluno:</p>
-                <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">{chamado.mensagem}</p>
+                <HistoricoMensagem mensagem={chamado.mensagem} />
               </div>
+
+              {chamado.resposta_admin && chamado.status === 'em_atendimento' && (
+                <div className="bg-blue-500/5 p-5 rounded-xl border border-blue-500/10 mb-5">
+                  <p className="text-xs text-blue-500 uppercase font-bold tracking-widest mb-2">Sua mensagem (atendimento em andamento):</p>
+                  <p className="text-sm text-blue-100/80 leading-relaxed whitespace-pre-wrap">{chamado.resposta_admin}</p>
+                </div>
+              )}
 
               {chamado.resposta_admin && chamado.status === 'resolvido' && (
                 <div className="bg-emerald-500/5 p-5 rounded-xl border border-emerald-500/10 mb-5">

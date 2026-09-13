@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { enviarAlertaTelegram } from "@/lib/telegram";
 import { LifeBuoy, MessageSquare, History, Send, CheckCircle2, AlertCircle, Trash2, RotateCcw, X } from "lucide-react";
 
 interface Chamado {
@@ -13,6 +14,8 @@ interface Chamado {
   status: string;
   resposta_admin: string | null;
   questao_id: string | null;
+  nome: string | null;
+  email: string | null;
 }
 
 export default function SuportePage() {
@@ -28,6 +31,10 @@ export default function SuportePage() {
   const [reabrindoId, setReabrindoId] = useState<string | null>(null);
   const [motivoReabertura, setMotivoReabertura] = useState("");
   const [processandoAcao, setProcessandoAcao] = useState(false);
+
+  // Estados para resposta durante atendimento
+  const [respondendoId, setRespondendoId] = useState<string | null>(null);
+  const [textoResposta, setTextoResposta] = useState("");
 
   const [formData, setFormData] = useState({
     nome: "",
@@ -65,7 +72,7 @@ export default function SuportePage() {
         try {
           const { data, error } = await supabase
             .from("chamados_suporte")
-            .select("id, criado_em, categoria, mensagem, status, resposta_admin, questao_id")
+            .select("id, criado_em, categoria, mensagem, status, resposta_admin, questao_id, nome, email")
             .eq("aluno_id", alunoId)
             .order("criado_em", { ascending: false });
 
@@ -84,37 +91,6 @@ export default function SuportePage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const enviarAlertaTelegram = async (nome: string, email: string, categoria: string, msg: string, qId?: string, isReabertura = false) => {
-    const token = process.env.NEXT_PUBLIC_BOT_SUPORTE_TOKEN;
-    const chatId = process.env.NEXT_PUBLIC_CHAT_ADMIN_ID;
-    
-    if (!token || !chatId) return;
-
-    const textoFormatado = isReabertura 
-      ? `⚠️ *CHAMADO REABERTO PELO ALUNO* ⚠️\n\n` +
-        `👤 *Aluno:* ${nome}\n` +
-        `📌 *Categoria:* ${categoria}\n` +
-        `\n💬 *Motivo da Reabertura:* \n"${msg}"\n\n` +
-        `📦 _Acesse o painel admin para verificar._`
-      : `🚨 *NOVO CHAMADO DE SUPORTE* 🚨\n\n` +
-        `👤 *Aluno:* ${nome}\n` +
-        `📬 *E-mail:* ${email}\n` +
-        `📌 *Categoria:* ${categoria}\n` +
-        (qId ? `🆔 *ID da Questão:* ${qId}\n` : '') +
-        `\n💬 *Mensagem:* \n"${msg}"\n\n` +
-        `📦 _Acesse o painel admin para responder._`;
-
-    try {
-      await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text: textoFormatado, parse_mode: "Markdown" }),
-      });
-    } catch (err) {
-      console.error("Falha ao enviar push para o Telegram:", err);
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -136,7 +112,7 @@ export default function SuportePage() {
 
       if (erroSuporte) throw erroSuporte;
 
-      await enviarAlertaTelegram(formData.nome, formData.email, formData.categoria, formData.mensagem, idDaQuestao || undefined);
+      await enviarAlertaTelegram({ tipo: 'novo', nome: formData.nome, email: formData.email, categoria: formData.categoria, msg: formData.mensagem, questaoId: idDaQuestao || undefined });
 
       setSucesso(true);
       setFormData(prev => ({ ...prev, mensagem: "", questao_id: "", categoria: "Acesso à Plataforma" }));
@@ -175,7 +151,7 @@ export default function SuportePage() {
 
       if (error) throw error;
 
-      await enviarAlertaTelegram(formData.nome, formData.email, chamado.categoria, motivoReabertura, chamado.questao_id || undefined, true);
+      await enviarAlertaTelegram({ tipo: 'reabertura', nome: chamado.nome || formData.nome, email: chamado.email || formData.email, categoria: chamado.categoria, msg: motivoReabertura, questaoId: chamado.questao_id || undefined });
 
       // Atualiza estado local
       setMeusChamados(prev => prev.map(c => c.id === chamado.id ? { ...c, status: 'pendente', mensagem: novaMensagem } : c));
@@ -183,6 +159,32 @@ export default function SuportePage() {
       setMotivoReabertura("");
     } catch (err: any) {
       alert(`Erro ao reabrir: ${err.message}`);
+    } finally {
+      setProcessandoAcao(false);
+    }
+  };
+
+  const handleResponderAtendimento = async (chamado: Chamado) => {
+    if (!textoResposta.trim()) {
+      return alert("Digite sua resposta antes de enviar.");
+    }
+    setProcessandoAcao(true);
+    try {
+      const novaMensagem = `${chamado.mensagem}\n\n[RESPOSTA DO ALUNO]\n${textoResposta}`;
+
+      const { error } = await supabase.from("chamados_suporte").update({
+        mensagem: novaMensagem
+      }).eq("id", chamado.id).eq("status", "em_atendimento");
+
+      if (error) throw error;
+
+      await enviarAlertaTelegram({ tipo: 'resposta', nome: chamado.nome || formData.nome, email: chamado.email || formData.email, categoria: chamado.categoria, msg: textoResposta, questaoId: chamado.questao_id || undefined });
+
+      setMeusChamados(prev => prev.map(c => c.id === chamado.id ? { ...c, mensagem: novaMensagem } : c));
+      setRespondendoId(null);
+      setTextoResposta("");
+    } catch (err) {
+      alert(`Erro ao enviar resposta: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setProcessandoAcao(false);
     }
@@ -350,8 +352,21 @@ export default function SuportePage() {
                       <p className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">{chamado.mensagem}</p>
                     </div>
 
-                    {/* Resposta do Admin */}
-                    {chamado.resposta_admin && (
+                    {/* Resposta / Mensagem do Admin */}
+                    {chamado.resposta_admin && chamado.status === 'em_atendimento' && (
+                      <div className="mt-4 bg-blue-500/5 border border-blue-500/10 rounded-xl p-5 relative">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertCircle className="w-4 h-4 text-blue-500" />
+                          <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">
+                            Mensagem do Professor (em análise)
+                          </span>
+                        </div>
+                        <p className="text-sm text-blue-100/80 whitespace-pre-wrap leading-relaxed">
+                          {chamado.resposta_admin}
+                        </p>
+                      </div>
+                    )}
+                    {chamado.resposta_admin && chamado.status === 'resolvido' && (
                       <div className="mt-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-5 relative">
                         <div className="flex items-center gap-2 mb-2">
                           <CheckCircle2 className="w-4 h-4 text-emerald-500" />
@@ -365,10 +380,52 @@ export default function SuportePage() {
                       </div>
                     )}
 
+                    {/* Botão de Resposta durante Atendimento */}
+                    {chamado.status === 'em_atendimento' && respondendoId !== chamado.id && (
+                      <div className="pt-2 border-t border-white/5 flex justify-end">
+                        <button
+                          onClick={() => setRespondendoId(chamado.id)}
+                          className="flex items-center gap-2 text-[10px] font-bold text-zinc-400 hover:text-blue-400 uppercase tracking-widest transition-colors p-2 rounded-lg hover:bg-blue-500/10"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" /> Responder ao professor
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Formulário de Resposta durante Atendimento */}
+                    {respondendoId === chamado.id && (
+                      <div className="mt-4 bg-black/40 border border-white/10 rounded-xl p-5 animate-in slide-in-from-top-2">
+                        <div className="flex justify-between items-center mb-3">
+                          <label className="block text-[10px] font-bold text-blue-500 uppercase tracking-widest">
+                            Responder ao professor
+                          </label>
+                          <button onClick={() => { setRespondendoId(null); setTextoResposta(""); }} className="text-zinc-500 hover:text-white">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <textarea
+                          rows={3}
+                          value={textoResposta}
+                          onChange={(e) => setTextoResposta(e.target.value)}
+                          className="w-full rounded-lg bg-[#09090b] border border-white/10 p-3 text-sm text-white focus:border-blue-500 focus:outline-none resize-none transition-colors mb-3 custom-scrollbar"
+                          placeholder="Escreva sua resposta..."
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => handleResponderAtendimento(chamado)}
+                            disabled={processandoAcao}
+                            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-50"
+                          >
+                            {processandoAcao ? "Processando..." : "Enviar Resposta"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Ações Inferiores (Reabrir) */}
                     {chamado.status === 'resolvido' && reabrindoId !== chamado.id && (
                       <div className="pt-2 border-t border-white/5 flex justify-end">
-                        <button 
+                        <button
                           onClick={() => setReabrindoId(chamado.id)}
                           className="flex items-center gap-2 text-[10px] font-bold text-zinc-400 hover:text-amber-400 uppercase tracking-widest transition-colors p-2 rounded-lg hover:bg-amber-500/10"
                         >
@@ -388,15 +445,15 @@ export default function SuportePage() {
                             <X className="w-4 h-4" />
                           </button>
                         </div>
-                        <textarea 
-                          rows={3} 
-                          value={motivoReabertura} 
+                        <textarea
+                          rows={3}
+                          value={motivoReabertura}
                           onChange={(e) => setMotivoReabertura(e.target.value)}
-                          className="w-full rounded-lg bg-[#09090b] border border-white/10 p-3 text-sm text-white focus:border-amber-500 focus:outline-none resize-none transition-colors mb-3 custom-scrollbar" 
+                          className="w-full rounded-lg bg-[#09090b] border border-white/10 p-3 text-sm text-white focus:border-amber-500 focus:outline-none resize-none transition-colors mb-3 custom-scrollbar"
                           placeholder="Explique por que a resposta não resolveu o problema..."
                         />
                         <div className="flex justify-end gap-2">
-                          <button 
+                          <button
                             onClick={() => handleConfirmarReabertura(chamado)}
                             disabled={processandoAcao}
                             className="bg-amber-600 hover:bg-amber-500 text-black px-4 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-50"

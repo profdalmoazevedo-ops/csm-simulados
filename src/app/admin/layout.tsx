@@ -1,8 +1,9 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 import { 
   LayoutDashboard, 
   Database, 
@@ -10,11 +11,64 @@ import {
   Users, 
   Settings,
   LifeBuoy,
-  Bell
+  Bell,
+  ShieldAlert
 } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [verificando, setVerificando] = useState(true);
+  const [autorizado, setAutorizado] = useState(false);
+
+  useEffect(() => {
+    let ativo = true;
+    async function checarAcesso() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          if (ativo) router.replace('/auth');
+          return;
+        }
+        const ok = session.user.email === 'profdalmoazevedo@gmail.com';
+        if (ativo) setAutorizado(ok);
+      } finally {
+        if (ativo) setVerificando(false);
+      }
+    }
+    checarAcesso();
+    return () => { ativo = false; };
+  }, [router]);
+
+  if (verificando) {
+    return (
+      <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
+        <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 animate-pulse">
+          Verificando acesso...
+        </p>
+      </div>
+    );
+  }
+
+  if (!autorizado) {
+    return (
+      <div className="min-h-screen bg-[#09090b] flex items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-4 text-center max-w-xs">
+          <ShieldAlert className="w-10 h-10 text-amber-500" />
+          <p className="text-sm font-bold uppercase tracking-widest text-zinc-300">Acesso restrito</p>
+          <p className="text-xs text-zinc-500">
+            Esta área é exclusiva do professor. Se você chegou aqui por engano, volte para a home.
+          </p>
+          <button
+            onClick={() => router.replace('/')}
+            className="mt-2 bg-white/5 border border-white/10 px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-colors"
+          >
+            Voltar para a home
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const menuAdmin = [
     { name: 'Visão Geral', href: '/admin', icon: LayoutDashboard },
@@ -24,7 +78,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Suporte', href: '/admin/suporte', icon: LifeBuoy },
     { name: 'Notificações', href: '/admin/notificacoes', icon: Bell },
     { name: 'Configurações', href: '/admin/configuracoes', icon: Settings },
-
   ];
 
   return (
@@ -39,7 +92,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         
         <nav className="flex-1 p-4 space-y-2">
           {menuAdmin.map((item) => {
-            // Ajuste para evitar que "Visão Geral" (/admin) fique sempre ativa nas sub-rotas
             const isActive = item.href === '/admin' 
               ? pathname === '/admin' 
               : pathname === item.href || pathname.startsWith(`${item.href}/`);
