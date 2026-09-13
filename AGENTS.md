@@ -50,6 +50,7 @@ A manual migration must be run in the Supabase SQL Editor before the pages below
 - `npm run dev` / `npm run build` / `npm run start`
 - `npm run lint` (eslint flat config in `eslint.config.mjs`)
 - No typecheck or test scripts are configured — run `npx tsc --noEmit` to typecheck. There is no test suite.
+- `npm run enriquecer-metadados` — local CLI (roda na máquina do usuário, IP residencial): busca cada questão faltante de cargo/órgão no Gran Cursos Questões (via DuckDuckGo direto + fetch direto/jina) e grava com `SUPABASE_SERVICE_ROLE_KEY` de `.env.local`. Flags: `--dry-run`, `--limite N`. O `/api/inferir-metadados` (admin) faz o mesmo mas server-side (Vercel) e é mais limitado (rate-limit do DDG / IP compartilhado) — o script é o caminho confiável para lotes grandes.
 
 ## Quirks
 - Navbar is intentionally hidden on `/auth` and `/simulado/*`.

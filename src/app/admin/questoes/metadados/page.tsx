@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { ehCampoFaltante } from '@/lib/metadados';
-import { AlertCircle, ArrowLeft, CheckCircle2, ChevronDown, Loader2, RefreshCcw, Wand2 } from 'lucide-react';
+import { AlertCircle, ArrowLeft, CheckCircle2, ChevronDown, ExternalLink, Loader2, RefreshCcw, Search } from 'lucide-react';
 
 type QuestaoMeta = {
   id: string;
@@ -13,10 +13,14 @@ type QuestaoMeta = {
   topico: string;
   ano: number | null;
   enunciado: string;
+  alternativa_a: string;
   orgaoOriginal: string;
   cargoOriginal: string;
   orgaoEditado: string;
   cargoEditado: string;
+  fonte: string;
+  fonteUrl: string;
+  status: 'verificado' | 'estimado' | 'nao_encontrado';
   aplicada: boolean;
 };
 
@@ -37,11 +41,19 @@ type LinhaQuestao = {
   topico: string | null;
   ano: number | null;
   enunciado: string | null;
+  alternativa_a: string | null;
 };
 
-type SugestaoIA = { id: string; orgao: string; cargo: string };
+type SugestaoResposta = {
+  id: string;
+  orgao: string;
+  cargo: string;
+  fonte: string;
+  url: string;
+  status: 'verificado' | 'estimado' | 'nao_encontrado';
+};
 
-const TAMANHO_LOTE_IA = 5;
+const TAMANHO_LOTE = 3;
 
 const limparHtml = (texto: string | null) =>
   (texto || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -68,10 +80,14 @@ function montarGrupos(candidatas: LinhaQuestao[]): GrupoMetadados[] {
       topico: q.topico || '',
       ano,
       enunciado: limparHtml(q.enunciado),
+      alternativa_a: q.alternativa_a || '',
       orgaoOriginal: q.orgao || '',
       cargoOriginal: q.cargo || '',
       orgaoEditado: q.orgao || '',
       cargoEditado: q.cargo || '',
+      fonte: '',
+      fonteUrl: '',
+      status: 'nao_encontrado',
       aplicada: false
     });
   }
@@ -98,7 +114,7 @@ export default function PreencherMetadados() {
       try {
         const { data, error } = await supabase
           .from('questoes')
-          .select('id, banca, orgao, cargo, materia, topico, ano, enunciado');
+          .select('id, banca, orgao, cargo, materia, topico, ano, enunciado, alternativa_a');
 
         if (error) throw error;
 
@@ -130,7 +146,7 @@ export default function PreencherMetadados() {
     0
   );
 
-  async function buscarSugestoesGrupo(chave: string) {
+  async function buscarMetadadosGrupo(chave: string) {
     const grupo = grupos.find(g => g.chave === chave);
     if (!grupo) return;
 
@@ -138,17 +154,17 @@ export default function PreencherMetadados() {
     if (pendentes.length === 0) return;
 
     setBuscandoIA(prev => ({ ...prev, [chave]: true }));
-    setProgressoIA(prev => ({ ...prev, [chave]: 'Iniciando análise da IA...' }));
+    setProgressoIA(prev => ({ ...prev, [chave]: 'Buscando na web...' }));
     setErro('');
 
     try {
-      for (let i = 0; i < pendentes.length; i += TAMANHO_LOTE_IA) {
-        const lote = pendentes.slice(i, i + TAMANHO_LOTE_IA);
-        const fim = Math.min(i + TAMANHO_LOTE_IA, pendentes.length);
+      for (let i = 0; i < pendentes.length; i += TAMANHO_LOTE) {
+        const lote = pendentes.slice(i, i + TAMANHO_LOTE);
+        const fim = Math.min(i + TAMANHO_LOTE, pendentes.length);
 
         setProgressoIA(prev => ({
           ...prev,
-          [chave]: `Analisando ${i + 1}–${fim} de ${pendentes.length}...`
+          [chave]: `Buscando ${i + 1}–${fim} de ${pendentes.length}...`
         }));
 
         const resposta = await fetch('/api/inferir-metadados', {
@@ -161,15 +177,16 @@ export default function PreencherMetadados() {
               materia: q.materia,
               topico: q.topico,
               ano: q.ano,
-              enunciado: q.enunciado
+              enunciado: q.enunciado,
+              alternativa_a: q.alternativa_a
             }))
           })
         });
 
-        const dados = (await resposta.json()) as { error?: string; inferencias?: SugestaoIA[] };
+        const dados = (await resposta.json()) as { error?: string; inferencias?: SugestaoResposta[] };
 
         if (!resposta.ok || !dados.inferencias) {
-          throw new Error(dados.error || 'Falha ao obter sugestões da IA.');
+          throw new Error(dados.error || 'Falha ao obter as informações.');
         }
 
         const porId = new Map(dados.inferencias.map(s => [s.id, s]));
@@ -184,16 +201,19 @@ export default function PreencherMetadados() {
               return {
                 ...q,
                 orgaoEditado: sugestao.orgao || q.orgaoEditado,
-                cargoEditado: sugestao.cargo || q.cargoEditado
+                cargoEditado: sugestao.cargo || q.cargoEditado,
+                fonte: sugestao.fonte,
+                fonteUrl: sugestao.url,
+                status: sugestao.status
               };
             })
           };
         }));
 
-        if (fim < pendentes.length) await sleep(2500);
+        if (fim < pendentes.length) await sleep(4000);
       }
     } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Erro ao buscar sugestões da IA.');
+      setErro(err instanceof Error ? err.message : 'Erro ao buscar as informações.');
     } finally {
       setBuscandoIA(prev => ({ ...prev, [chave]: false }));
       setProgressoIA(prev => ({ ...prev, [chave]: '' }));
@@ -288,7 +308,7 @@ export default function PreencherMetadados() {
     try {
       const { data, error } = await supabase
         .from('questoes')
-        .select('id, banca, orgao, cargo, materia, topico, ano, enunciado');
+        .select('id, banca, orgao, cargo, materia, topico, ano, enunciado, alternativa_a');
 
       if (error) throw error;
 
@@ -346,7 +366,7 @@ export default function PreencherMetadados() {
                   {totalPendentes} questões aguardando preenchimento
                 </p>
                 <p className="text-xs text-zinc-500 mt-1">
-                  Agrupadas por Banca · Matéria · Ano. Use a IA para sugerir e revise antes de salvar.
+                  Agrupadas por Banca · Matéria · Ano. A busca na web encontra a questão original e sugere as tags — revise antes de salvar.
                 </p>
               </div>
               <button onClick={recarregar} className="text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-white bg-white/5 px-4 py-2.5 rounded-lg transition-colors flex items-center gap-2 w-fit">
@@ -389,13 +409,16 @@ export default function PreencherMetadados() {
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <button
                             type="button"
-                            onClick={() => buscarSugestoesGrupo(grupo.chave)}
+                            onClick={() => buscarMetadadosGrupo(grupo.chave)}
                             disabled={!!buscandoIA[grupo.chave]}
                             className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-black uppercase tracking-widest py-3 px-5 rounded-xl transition-all flex items-center gap-2 w-fit"
                           >
-                            {buscandoIA[grupo.chave] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-                            {buscandoIA[grupo.chave] ? 'Analisando questões...' : 'Buscar sugestões da IA'}
+                            {buscandoIA[grupo.chave] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                            {buscandoIA[grupo.chave] ? 'Buscando na web...' : 'Buscar informações na web'}
                           </button>
+                          <span className="text-xs text-zinc-500">
+                            Encontra a questão no Gran Cursos e preenche Órgão/Cargo da prova. IA estima o restante.
+                          </span>
                           {progressoIA[grupo.chave] && (
                             <span className="text-xs font-medium text-indigo-400">{progressoIA[grupo.chave]}</span>
                           )}
@@ -427,6 +450,31 @@ export default function PreencherMetadados() {
                                   />
                                 </div>
                               </div>
+                              {q.status !== 'nao_encontrado' && (
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <span
+                                    className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md flex items-center gap-1.5 ${
+                                      q.status === 'verificado'
+                                        ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+                                        : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+                                    }`}
+                                  >
+                                    {q.status === 'verificado'
+                                      ? `Encontrada — ${q.fonte}`
+                                      : `Estimativa IA — ${q.fonte}`}
+                                  </span>
+                                  {q.fonteUrl && (
+                                    <a
+                                      href={q.fonteUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-[10px] font-bold uppercase tracking-widest text-blue-400 hover:text-blue-300 bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-md flex items-center gap-1.5 transition-colors"
+                                    >
+                                      <ExternalLink className="w-3 h-3" /> abrir fonte
+                                    </a>
+                                  )}
+                                </div>
+                              )}
                               <div className="flex justify-end">
                                 <button
                                   type="button"
