@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     5. CLASSIFICAÇÃO E METADADOS: 
         - ÓRGÃO: Busque o texto logo após a tag "Órgão:" no cabeçalho.
         - CARGO: Geralmente é a última informação da string "Prova:", localizada após o último hífen. 
-        - Extraia também "banca", "materia" e "topico". Se o órgão ou cargo não estiverem no texto, retorne "Acervo Geral" para órgão e "Diversos" para cargo.
+        - Extraia também "banca", "materia", "topico" e "ano" (o ano da prova, ex: 2026). Se o órgão ou cargo não estiverem no texto, retorne "Acervo Geral" para órgão e "Diversos" para cargo. Se o ano não estiver no texto, retorne 2026.
 
     IMPORTANTE: PROCESSE TODAS AS QUESTÕES PRESENTES NO TEXTO, NÃO OMITE NENHUMA. NUNCA misture as alternativas dentro do campo do enunciado.
 
@@ -41,6 +41,7 @@ export async function POST(req: Request) {
       banca: { type: "STRING" },
       orgao: { type: "STRING", nullable: true },
       cargo: { type: "STRING", nullable: true },
+      ano: { type: "INTEGER", nullable: true },
       tipo_questao: { type: "STRING" },
       materia: { type: "STRING" },
       topico: { type: "STRING" },
@@ -167,6 +168,7 @@ export async function POST(req: Request) {
       banca: q.banca || "FGV",
       orgao: (q.orgao && q.orgao.trim() !== "") ? q.orgao : "Acervo Geral",
       cargo: (q.cargo && q.cargo.trim() !== "") ? q.cargo : "Diversos",
+      ano: Number(q.ano) || 2026,
       tipo_questao: q.tipo_questao,
       materia: q.materia || "Direito",
       topico: q.topico || "Assunto",

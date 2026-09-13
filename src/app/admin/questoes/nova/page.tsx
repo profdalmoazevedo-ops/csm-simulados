@@ -23,6 +23,7 @@ export default function NovaQuestaoAdmin() {
     banca: 'FGV',
     orgao: '',
     cargo: '',
+    ano: '2026',
     tipo_questao: 'multipla_escolha',
     materia: '',
     topico: '',
@@ -92,6 +93,7 @@ export default function NovaQuestaoAdmin() {
         banca: qIA.banca || 'FGV',
         orgao: qIA.orgao || '',
         cargo: qIA.cargo || '',
+        ano: qIA.ano ? String(qIA.ano) : '2026',
         tipo_questao: qIA.tipo_questao || 'multipla_escolha',
         materia: qIA.materia || '',
         topico: qIA.topico || '',
@@ -318,6 +320,7 @@ export default function NovaQuestaoAdmin() {
         banca: padronizarSigla(formData.banca),
         orgao: padronizarSigla(formData.orgao), 
         cargo: padronizarTitulo(formData.cargo), 
+        ano: Number(formData.ano) || 2026,
         materia: padronizarTitulo(formData.materia),
         topico: padronizarTitulo(formData.topico),
         
@@ -467,7 +470,7 @@ export default function NovaQuestaoAdmin() {
             </h2>
             
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2">Banca</label>
                   <input type="text" name="banca" value={formData.banca} onChange={handleChange} required
@@ -481,6 +484,11 @@ export default function NovaQuestaoAdmin() {
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2">Cargo</label>
                   <input type="text" name="cargo" value={formData.cargo} onChange={handleChange} placeholder="Ex: Analista Judiciário"
+                    className="w-full text-sm bg-[#09090b] border border-white/10 text-white rounded-lg px-3 py-2.5 focus:border-blue-500 outline-none transition-all" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2">Ano</label>
+                  <input type="number" name="ano" value={formData.ano} onChange={handleChange} required min={1990} max={2026}
                     className="w-full text-sm bg-[#09090b] border border-white/10 text-white rounded-lg px-3 py-2.5 focus:border-blue-500 outline-none transition-all" />
                 </div>
               </div>

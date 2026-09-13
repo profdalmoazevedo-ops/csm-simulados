@@ -27,6 +27,7 @@ export async function POST(req: Request) {
       "questoes": [
         {
           "banca": "", "orgao": "", "cargo": "", "materia": "", "topico": "",
+          "ano": "",
           "tipo_questao": "",
           "enunciado": "",
           "alternativa_a": "", "alternativa_b": "", "alternativa_c": "", "alternativa_d": "", "alternativa_e": "",
