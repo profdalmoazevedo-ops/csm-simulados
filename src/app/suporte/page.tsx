@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { enviarAlertaTelegram } from "@/lib/telegram";
+import { uploadImagensSuporte, montarMensagemComImagens } from "@/lib/uploadImagem";
+import AnexadorImagem from "@/components/AnexadorImagem";
+import MensagemComImagens from "@/components/MensagemComImagens";
 import { LifeBuoy, MessageSquare, History, Send, CheckCircle2, AlertCircle, Trash2, RotateCcw, X } from "lucide-react";
 
 interface Chamado {
@@ -35,6 +38,10 @@ export default function SuportePage() {
   // Estados para resposta durante atendimento
   const [respondendoId, setRespondendoId] = useState<string | null>(null);
   const [textoResposta, setTextoResposta] = useState("");
+
+  // Estados para anexos de imagem
+  const [imagensNovas, setImagensNovas] = useState<File[]>([]);
+  const [imagensResposta, setImagensResposta] = useState<File[]>([]);
 
   const [formData, setFormData] = useState({
     nome: "",
@@ -99,22 +106,25 @@ export default function SuportePage() {
 
     try {
       const idDaQuestao = formData.categoria === "Erro em Questão" ? formData.questao_id : null;
+      const urlsImagens = await uploadImagensSuporte(imagensNovas);
+      const mensagemFinal = montarMensagemComImagens(formData.mensagem, urlsImagens);
 
       const { error: erroSuporte } = await supabase.from("chamados_suporte").insert({
         aluno_id: alunoId,
         nome: formData.nome,
         email: formData.email,
         categoria: formData.categoria,
-        mensagem: formData.mensagem,
+        mensagem: mensagemFinal,
         questao_id: idDaQuestao,
         status: "pendente"
       });
 
       if (erroSuporte) throw erroSuporte;
 
-      await enviarAlertaTelegram({ tipo: 'novo', nome: formData.nome, email: formData.email, categoria: formData.categoria, msg: formData.mensagem, questaoId: idDaQuestao || undefined });
+      await enviarAlertaTelegram({ tipo: 'novo', nome: formData.nome, email: formData.email, categoria: formData.categoria, msg: formData.mensagem, questaoId: idDaQuestao || undefined, imagens: urlsImagens });
 
       setSucesso(true);
+      setImagensNovas([]);
       setFormData(prev => ({ ...prev, mensagem: "", questao_id: "", categoria: "Acesso à Plataforma" }));
     } catch (error: any) {
       alert(`Erro ao enviar chamado: ${error.message}`);
@@ -165,12 +175,14 @@ export default function SuportePage() {
   };
 
   const handleResponderAtendimento = async (chamado: Chamado) => {
-    if (!textoResposta.trim()) {
-      return alert("Digite sua resposta antes de enviar.");
+    if (!textoResposta.trim() && imagensResposta.length === 0) {
+      return alert("Digite sua resposta ou anexe uma imagem antes de enviar.");
     }
     setProcessandoAcao(true);
     try {
-      const novaMensagem = `${chamado.mensagem}\n\n[RESPOSTA DO ALUNO]\n${textoResposta}`;
+      const urlsImagens = await uploadImagensSuporte(imagensResposta);
+      const blocoResposta = montarMensagemComImagens(textoResposta, urlsImagens);
+      const novaMensagem = `${chamado.mensagem}\n\n[RESPOSTA DO ALUNO]\n${blocoResposta}`;
 
       const { error } = await supabase.from("chamados_suporte").update({
         mensagem: novaMensagem
@@ -178,11 +190,12 @@ export default function SuportePage() {
 
       if (error) throw error;
 
-      await enviarAlertaTelegram({ tipo: 'resposta', nome: chamado.nome || formData.nome, email: chamado.email || formData.email, categoria: chamado.categoria, msg: textoResposta, questaoId: chamado.questao_id || undefined });
+      await enviarAlertaTelegram({ tipo: 'resposta', nome: chamado.nome || formData.nome, email: chamado.email || formData.email, categoria: chamado.categoria, msg: textoResposta || "Imagem anexada", questaoId: chamado.questao_id || undefined, imagens: urlsImagens });
 
       setMeusChamados(prev => prev.map(c => c.id === chamado.id ? { ...c, mensagem: novaMensagem } : c));
       setRespondendoId(null);
       setTextoResposta("");
+      setImagensResposta([]);
     } catch (err) {
       alert(`Erro ao enviar resposta: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -293,6 +306,9 @@ export default function SuportePage() {
                 <textarea name="mensagem" required rows={5} value={formData.mensagem} onChange={handleChange} 
                   className="w-full rounded-xl bg-[#09090b] border border-white/10 p-4 text-sm text-white focus:border-emerald-500 focus:outline-none resize-none transition-colors placeholder:text-zinc-700 custom-scrollbar" 
                   placeholder="Descreva seu problema com o máximo de detalhes possível..."/>
+                <div className="mt-3">
+                  <AnexadorImagem imagens={imagensNovas} onChange={setImagensNovas} />
+                </div>
               </div>
 
               <button type="submit" disabled={loading} 
@@ -349,7 +365,7 @@ export default function SuportePage() {
                     {/* Conteúdo */}
                     <div>
                       <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-2">Sua Mensagem:</p>
-                      <p className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">{chamado.mensagem}</p>
+                      <MensagemComImagens texto={chamado.mensagem} />
                     </div>
 
                     {/* Resposta / Mensagem do Admin */}
@@ -361,9 +377,7 @@ export default function SuportePage() {
                             Mensagem do Professor (em análise)
                           </span>
                         </div>
-                        <p className="text-sm text-blue-100/80 whitespace-pre-wrap leading-relaxed">
-                          {chamado.resposta_admin}
-                        </p>
+                        <MensagemComImagens texto={chamado.resposta_admin} />
                       </div>
                     )}
                     {chamado.resposta_admin && chamado.status === 'resolvido' && (
@@ -374,9 +388,7 @@ export default function SuportePage() {
                             Resposta do Professor
                           </span>
                         </div>
-                        <p className="text-sm text-emerald-100/80 whitespace-pre-wrap leading-relaxed">
-                          {chamado.resposta_admin}
-                        </p>
+                        <MensagemComImagens texto={chamado.resposta_admin} />
                       </div>
                     )}
 
@@ -399,7 +411,7 @@ export default function SuportePage() {
                           <label className="block text-[10px] font-bold text-blue-500 uppercase tracking-widest">
                             Responder ao professor
                           </label>
-                          <button onClick={() => { setRespondendoId(null); setTextoResposta(""); }} className="text-zinc-500 hover:text-white">
+                          <button onClick={() => { setRespondendoId(null); setTextoResposta(""); setImagensResposta([]); }} className="text-zinc-500 hover:text-white">
                             <X className="w-4 h-4" />
                           </button>
                         </div>
@@ -410,6 +422,9 @@ export default function SuportePage() {
                           className="w-full rounded-lg bg-[#09090b] border border-white/10 p-3 text-sm text-white focus:border-blue-500 focus:outline-none resize-none transition-colors mb-3 custom-scrollbar"
                           placeholder="Escreva sua resposta..."
                         />
+                        <div className="mb-3">
+                          <AnexadorImagem imagens={imagensResposta} onChange={setImagensResposta} />
+                        </div>
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={() => handleResponderAtendimento(chamado)}

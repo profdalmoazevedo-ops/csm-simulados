@@ -2,6 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { uploadImagensSuporte, montarMensagemComImagens } from '@/lib/uploadImagem';
+import AnexadorImagem from '@/components/AnexadorImagem';
+import MensagemComImagens from '@/components/MensagemComImagens';
 import { 
   LifeBuoy, Clock, CheckCircle2, AlertCircle, 
   Trash2, Play, Check, Search, Mail, User, MessageSquare, RotateCcw
@@ -22,6 +25,15 @@ function parseHistorico(mensagem: string): BlocoHistorico[] {
     } else if (bloco.startsWith('[REABERTO PELO ALUNO]')) {
       if (pendente) { blocos.push({ tipo: 'original', texto: pendente.trim() }); pendente = ''; }
       blocos.push({ tipo: 'reaberto', texto: bloco.replace('[REABERTO PELO ALUNO]\n', '').trim() });
+    } else if (bloco.startsWith('[IMAGEM]')) {
+      if (pendente) {
+        pendente = `${pendente}\n\n${bloco}`;
+      } else if (blocos.length > 0) {
+        const ultimo = blocos[blocos.length - 1];
+        ultimo.texto = `${ultimo.texto}\n\n${bloco}`;
+      } else {
+        pendente = bloco;
+      }
     } else {
       pendente = pendente ? `${pendente}\n\n${bloco}` : bloco;
     }
@@ -38,9 +50,9 @@ function HistoricoMensagem({ mensagem }: { mensagem: string }) {
       {blocos.map((b, i) => {
         if (b.tipo === 'original') {
           return (
-            <p key={`${b.tipo}-${i}`} className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">
-              {b.texto}
-            </p>
+            <div key={`${b.tipo}-${i}`}>
+              <MensagemComImagens texto={b.texto} />
+            </div>
           );
         }
         if (b.tipo === 'resposta') {
@@ -49,7 +61,7 @@ function HistoricoMensagem({ mensagem }: { mensagem: string }) {
               <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
                 <MessageSquare className="w-3.5 h-3.5" /> Resposta do Aluno
               </p>
-              <p className="text-sm text-blue-100/80 leading-relaxed whitespace-pre-wrap">{b.texto}</p>
+              <MensagemComImagens texto={b.texto} />
             </div>
           );
         }
@@ -58,7 +70,7 @@ function HistoricoMensagem({ mensagem }: { mensagem: string }) {
             <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
               <RotateCcw className="w-3.5 h-3.5" /> Reaberto pelo Aluno
             </p>
-            <p className="text-sm text-amber-100/80 leading-relaxed whitespace-pre-wrap">{b.texto}</p>
+            <MensagemComImagens texto={b.texto} />
           </div>
         );
       })}
@@ -73,6 +85,7 @@ export default function GestaoSuporteAdmin() {
   // Controle de Modal Unificado
   const [modalAcao, setModalAcao] = useState<{tipo: 'iniciar' | 'resolver' | null, chamado: any}>({ tipo: null, chamado: null });
   const [respostaTexto, setRespostaTexto] = useState("");
+  const [imagensResposta, setImagensResposta] = useState<File[]>([]);
   const [processando, setProcessando] = useState(false);
 
   useEffect(() => {
@@ -137,10 +150,13 @@ export default function GestaoSuporteAdmin() {
     const { chamado, tipo } = modalAcao;
 
     try {
+      const urlsImagens = await uploadImagensSuporte(imagensResposta);
+      const mensagemFinal = montarMensagemComImagens(respostaTexto, urlsImagens);
+
       if (tipo === 'iniciar') {
         await supabase
           .from('chamados_suporte')
-          .update({ status: 'em_atendimento', resposta_admin: respostaTexto || null })
+          .update({ status: 'em_atendimento', resposta_admin: mensagemFinal || null })
           .eq('id', chamado.id);
         
         await dispararNotificacaoAluno(
@@ -151,7 +167,7 @@ export default function GestaoSuporteAdmin() {
       } else {
         await supabase
           .from('chamados_suporte')
-          .update({ status: 'resolvido', resposta_admin: respostaTexto || 'Chamado resolvido pela equipe técnica.' })
+          .update({ status: 'resolvido', resposta_admin: mensagemFinal || 'Chamado resolvido pela equipe técnica.' })
           .eq('id', chamado.id);
         
         await dispararNotificacaoAluno(
@@ -163,6 +179,7 @@ export default function GestaoSuporteAdmin() {
 
       setModalAcao({ tipo: null, chamado: null });
       setRespostaTexto("");
+      setImagensResposta([]);
       await carregarChamados();
     } catch (err) {
       alert("Erro ao processar a ação do chamado.");
@@ -275,14 +292,14 @@ export default function GestaoSuporteAdmin() {
               {chamado.resposta_admin && chamado.status === 'em_atendimento' && (
                 <div className="bg-blue-500/5 p-5 rounded-xl border border-blue-500/10 mb-5">
                   <p className="text-xs text-blue-500 uppercase font-bold tracking-widest mb-2">Sua mensagem (atendimento em andamento):</p>
-                  <p className="text-sm text-blue-100/80 leading-relaxed whitespace-pre-wrap">{chamado.resposta_admin}</p>
+                  <MensagemComImagens texto={chamado.resposta_admin} />
                 </div>
               )}
 
               {chamado.resposta_admin && chamado.status === 'resolvido' && (
                 <div className="bg-emerald-500/5 p-5 rounded-xl border border-emerald-500/10 mb-5">
                   <p className="text-xs text-emerald-500 uppercase font-bold tracking-widest mb-2">Sua Resposta Final:</p>
-                  <p className="text-sm text-emerald-100/80 leading-relaxed whitespace-pre-wrap">{chamado.resposta_admin}</p>
+                  <MensagemComImagens texto={chamado.resposta_admin} />
                 </div>
               )}
 
@@ -326,12 +343,16 @@ export default function GestaoSuporteAdmin() {
               placeholder={modalAcao.tipo === 'iniciar' ? "Ex: Oi! Já estou verificando essa questão..." : "Ex: Correção efetuada. O gabarito correto agora é a letra B."}
               value={respostaTexto}
               onChange={e => setRespostaTexto(e.target.value)}
-              className="w-full bg-[#09090b] border border-white/10 rounded-xl p-4 text-sm text-white mb-6 outline-none focus:border-emerald-500 transition-colors resize-none placeholder:text-zinc-600 custom-scrollbar"
+              className="w-full bg-[#09090b] border border-white/10 rounded-xl p-4 text-sm text-white mb-4 outline-none focus:border-emerald-500 transition-colors resize-none placeholder:text-zinc-600 custom-scrollbar"
             />
-            
+
+            <div className="mb-6">
+              <AnexadorImagem imagens={imagensResposta} onChange={setImagensResposta} />
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-3">
               <button 
-                onClick={() => {setModalAcao({tipo: null, chamado: null}); setRespostaTexto("")}} 
+                onClick={() => {setModalAcao({tipo: null, chamado: null}); setRespostaTexto(""); setImagensResposta([]);}} 
                 className="px-6 py-4 bg-white/5 hover:bg-white/10 rounded-xl text-zinc-400 font-bold text-[10px] uppercase tracking-widest transition-colors w-full sm:w-auto"
               >
                 Cancelar

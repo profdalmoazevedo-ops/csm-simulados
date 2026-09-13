@@ -11,9 +11,10 @@ interface AlertaTelegram {
   categoria?: string;
   msg: string;
   questaoId?: string | null;
+  imagens?: string[];
 }
 
-export async function enviarAlertaTelegram({ tipo, nome, email, categoria, msg, questaoId }: AlertaTelegram) {
+export async function enviarAlertaTelegram({ tipo, nome, email, categoria, msg, questaoId, imagens }: AlertaTelegram) {
   const token = process.env.NEXT_PUBLIC_BOT_SUPORTE_TOKEN;
   const chatId = process.env.NEXT_PUBLIC_CHAT_ADMIN_ID;
   if (!token || !chatId) return;
@@ -49,6 +50,10 @@ export async function enviarAlertaTelegram({ tipo, nome, email, categoria, msg, 
       `*Categoria:* ${catFmt}\n` +
       `\n*Motivo da Reabertura:* \n"${msgFmt}"\n\n` +
       `_Acesse o painel admin para verificar._`;
+  }
+
+  if (imagens && imagens.length > 0) {
+    textoFormatado += `\n\n*Imagens:*\n${imagens.map(u => escapeMarkdown(u)).join('\n')}`;
   }
 
   try {
