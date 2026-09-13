@@ -147,15 +147,21 @@ function carregarEnvLocal() {
   }
 }
 
+let bloqueiosConsecutivos = 0;
+
 async function resolverQuestao(q) {
   const trecho = extrairTrecho(q.enunciado);
   if (!trecho) return null;
 
   let busca = await buscarNoDDG(trecho);
   if (busca.urls.length === 0 && busca.bloqueado) {
-    console.log(`   → DDG bloqueou; aguardando 20s e tentando de novo...`);
-    await sleep(20000);
+    bloqueiosConsecutivos++;
+    const espera = Math.min(bloqueiosConsecutivos * 30000, 120000);
+    console.log(`   → DDG bloqueou (${bloqueiosConsecutivos}x seguidos); aguardando ${espera / 1000}s...`);
+    await sleep(espera);
     busca = await buscarNoDDG(trecho);
+  } else {
+    bloqueiosConsecutivos = 0;
   }
 
   for (const url of busca.urls) {
@@ -170,6 +176,23 @@ async function resolverQuestao(q) {
   }
 
   return null;
+}
+
+async function verificarAcessoDDG() {
+  for (let tent = 1; tent <= 4; tent++) {
+    const s = await buscarNoDDG('questões de concursos gran cursos online');
+    if (!s.bloqueado) {
+      console.log('🟢 DuckDuckGo acessível.\n');
+      return true;
+    }
+    if (tent < 4) {
+      console.warn(`🟡 DuckDuckGo com bloqueio temporário (verificação ${tent}/4). Aguardando 30s...`);
+      await sleep(30000);
+    }
+  }
+  console.error('🔴 DuckDuckGo continua bloqueado neste momento (rate-limit temporário por IP).');
+  console.error('   Espere alguns minutos e rode de novo, ou tente mais tarde. O bloqueio some sozinho.');
+  return false;
 }
 
 const dryRun = process.argv.includes('--dry-run');
@@ -201,6 +224,12 @@ if (error) {
 const faltantes = (data || []).filter(q => ehFaltante(q.orgao) || ehFaltante(q.cargo));
 const alvo = limite > 0 ? faltantes.slice(0, limite) : faltantes;
 console.log(`📋 ${data.length} questões no total · ${faltantes.length} sem Cargo/Órgão${limite > 0 ? ` · processando só as ${limite} primeiras` : ''}\n`);
+
+const ddgAcessivel = await verificarAcessoDDG();
+if (!ddgAcessivel) {
+  console.error('Nada foi processado. Rode de novo quando o DuckDuckGo liberar (minutos a horas).');
+  process.exit(1);
+}
 
 let encontrados = 0;
 let naoEncontrados = 0;
