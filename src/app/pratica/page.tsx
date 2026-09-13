@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Filter, Search, Loader2, BookOpen, CheckCircle2, XCircle, MessageSquare, ChevronDown } from 'lucide-react';
+import { Filter, Search, Loader2, BookOpen, CheckCircle2, XCircle, MessageSquare, ChevronDown, Hash, Copy, Check } from 'lucide-react';
 
 const TAMANHO_PAGINA = 15;
 
@@ -83,6 +83,17 @@ export default function BancoDeQuestoes() {
 
   const [selecoes, setSelecoes] = useState<Record<string, string>>({});
   const [respostas, setRespostas] = useState<Record<string, { marcada: string; correta: boolean }>>({});
+  const [idCopiado, setIdCopiado] = useState('');
+
+  const copiarQuestaoId = async (questaoId: string) => {
+    try {
+      await navigator.clipboard.writeText(questaoId);
+      setIdCopiado(questaoId);
+      setTimeout(() => setIdCopiado(''), 2000);
+    } catch (error) {
+      console.error("Erro ao copiar ID da questão:", error);
+    }
+  };
 
   // 1. Carrega as opções de filtro a partir da view agregada (sem baixar a tabela inteira)
   useEffect(() => {
@@ -265,6 +276,17 @@ export default function BancoDeQuestoes() {
                   <div key={questao.id} className="bg-[#131c2f]/20 border border-white/5 p-6 md:p-8 rounded-3xl">
                     
                     <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-6">
+                      {questao.id && (
+                        <button
+                          onClick={() => copiarQuestaoId(questao.id)}
+                          title="Copiar ID da questão"
+                          className="bg-white/5 px-3 py-1 rounded-md flex items-center gap-1.5 hover:bg-emerald-500/20 hover:text-emerald-500 transition-colors font-mono normal-case font-bold"
+                        >
+                          <Hash className="w-3 h-3" />
+                          {questao.id.slice(0, 8)}
+                          {idCopiado === questao.id ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                      )}
                       {questao.ano && <span className="bg-white/5 px-3 py-1 rounded-md">{questao.ano}</span>}
                       {questao.banca && <span className="bg-white/5 px-3 py-1 rounded-md">{questao.banca}</span>}
                       {questao.orgao && <span className="bg-white/5 px-3 py-1 rounded-md">{questao.orgao}</span>}

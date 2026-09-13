@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useParams, useRouter } from 'next/navigation';
-import { Loader2, CheckCircle2, XCircle, ArrowLeft, MessageSquare, Clock, Save } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, ArrowLeft, MessageSquare, Clock, Hash, Copy, Check } from 'lucide-react';
 
 export default function ResolucaoSimulado() {
   const params = useParams();
@@ -19,6 +19,17 @@ export default function ResolucaoSimulado() {
   const [finalizando, setFinalizando] = useState(false);
   const [finalizado, setFinalizado] = useState(false);
   const [resultado, setResultado] = useState({ acertos: 0, erros: 0, brancos: 0, notaFinal: 0 });
+  const [idCopiado, setIdCopiado] = useState('');
+
+  const copiarQuestaoId = async (questaoId: string) => {
+    try {
+      await navigator.clipboard.writeText(questaoId);
+      setIdCopiado(questaoId);
+      setTimeout(() => setIdCopiado(''), 2000);
+    } catch (error) {
+      console.error("Erro ao copiar ID:", error);
+    }
+  };
 
   useEffect(() => {
     async function carregarSimulado() {
@@ -281,13 +292,28 @@ export default function ResolucaoSimulado() {
                   : 'bg-[#131c2f]/20 border-white/5'
               }`}>
                 
-                <div className="flex items-center gap-4 mb-6">
-                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 text-white font-bold text-sm">
+                <div className="flex items-start gap-4 mb-6">
+                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 text-white font-bold text-sm shrink-0">
                     {index + 1}
                   </span>
-                  <div className="flex gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-500">
-                    <span className="bg-white/5 px-2 py-1 rounded">{questao.banca}</span>
-                    <span className="bg-emerald-500/10 text-emerald-500 px-2 py-1 rounded">{questao.materia}</span>
+                  <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                    {questao.id && (
+                      <button
+                        onClick={() => copiarQuestaoId(questao.id)}
+                        title="Copiar ID da questão"
+                        className="bg-white/5 px-3 py-1 rounded-md flex items-center gap-1.5 hover:bg-emerald-500/20 hover:text-emerald-500 transition-colors font-mono normal-case font-bold"
+                      >
+                        <Hash className="w-3 h-3" />
+                        {questao.id.slice(0, 8)}
+                        {idCopiado === questao.id ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    )}
+                    {questao.ano && <span className="bg-white/5 px-3 py-1 rounded">{questao.ano}</span>}
+                    {questao.banca && <span className="bg-white/5 px-3 py-1 rounded">{questao.banca}</span>}
+                    {questao.orgao && <span className="bg-white/5 px-3 py-1 rounded">{questao.orgao}</span>}
+                    {questao.cargo && <span className="bg-white/5 px-3 py-1 rounded">{questao.cargo}</span>}
+                    {questao.materia && <span className="bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded">{questao.materia}</span>}
+                    {questao.topico && <span className="bg-white/5 px-3 py-1 rounded">{questao.topico}</span>}
                   </div>
                 </div>
 
