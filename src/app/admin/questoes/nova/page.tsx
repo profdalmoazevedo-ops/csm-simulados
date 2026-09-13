@@ -319,7 +319,7 @@ export default function NovaQuestaoAdmin() {
         // Aplica a padronização antes de inserir
         banca: padronizarSigla(formData.banca),
         orgao: padronizarSigla(formData.orgao), 
-        cargo: padronizarTitulo(formData.cargo), 
+        cargo: padronizarTitulo(formData.cargo) || 'Sem cargo definido', 
         ano: Number(formData.ano) || 2026,
         materia: padronizarTitulo(formData.materia),
         topico: padronizarTitulo(formData.topico),
