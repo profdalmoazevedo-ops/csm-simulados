@@ -79,6 +79,7 @@ export default function BancoDeQuestoesAdmin() {
   const [filtroTopico, setFiltroTopico] = useState("Todos");
   const [qtdFaltantes, setQtdFaltantes] = useState(0);
   const [materiasExpandidas, setMateriasExpandidas] = useState<Record<string, boolean>>({});
+  const [topicosColapsados, setTopicosColapsados] = useState<Record<string, boolean>>({});
 
   const [gerandoLote, setGerandoLote] = useState(false);
   const [progressoLote, setProgressoLote] = useState("");
@@ -191,8 +192,14 @@ export default function BancoDeQuestoesAdmin() {
     setMateriasExpandidas(prev => ({ ...prev, [materia]: !(prev[materia] ?? false) }));
   }
 
+  function alternarTopico(chaveMateria: string, chaveTopico: string) {
+    const chave = `${chaveMateria}||${chaveTopico}`;
+    setTopicosColapsados(prev => ({ ...prev, [chave]: !(prev[chave] ?? false) }));
+  }
+
   function expandirTodas() {
     setMateriasExpandidas(Object.fromEntries(materias.map(m => [m.materia, true])));
+    setTopicosColapsados({});
   }
 
   function recolherTodas() {
@@ -221,7 +228,6 @@ export default function BancoDeQuestoesAdmin() {
   });
 
   const materias = agruparPorMateriaTopico(questoesFiltradas);
-  const primeiraMateria = materias[0]?.materia;
 
   return (
     <div className="min-h-screen bg-[#09090b] text-[#e4e4e7] font-sans pb-20">
@@ -346,7 +352,7 @@ export default function BancoDeQuestoesAdmin() {
             </div>
 
             {materias.map((materia) => {
-              const aberta = materiasExpandidas[materia.materia] ?? (materiasExpandidas[materia.materia] === undefined && materia.materia === primeiraMateria);
+              const aberta = materiasExpandidas[materia.materia] ?? false;
 
               return (
                 <div key={materia.materia} className="bg-[#131c2f]/30 border border-white/5 rounded-2xl overflow-hidden">
@@ -373,18 +379,29 @@ export default function BancoDeQuestoesAdmin() {
                   {/* Seções por tópico */}
                   {aberta && (
                     <div className="border-t border-white/5">
-                      {materia.topicos.map(topico => (
-                        <div key={topico.topico} className="border-b border-white/5 last:border-b-0">
-                          <div className="bg-black/20 px-5 py-2.5 flex items-center justify-between gap-3">
-                            <span className="text-xs font-bold uppercase tracking-widest text-emerald-500/90 flex items-center gap-1.5 truncate">
-                              <BookOpen className="w-3.5 h-3.5 shrink-0" /> {topico.topico}
-                            </span>
-                            <span className="shrink-0 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                              {topico.questoes.length}
-                            </span>
-                          </div>
-                          <div className="divide-y divide-white/5">
-                            {topico.questoes.map((questao) => (
+                      {materia.topicos.map(topico => {
+                        const chaveMateria = normalizarChave(materia.materia);
+                        const chaveTopicoTopico = normalizarChave(topico.topico);
+                        const topicoAberto = !topicosColapsados[`${chaveMateria}||${chaveTopicoTopico}`];
+
+                        return (
+                          <div key={`${chaveMateria}||${topico.topico}`} className="border-b border-white/5 last:border-b-0">
+                            <button
+                              type="button"
+                              onClick={() => alternarTopico(chaveMateria, chaveTopicoTopico)}
+                              className="w-full bg-black/20 px-5 py-2.5 flex items-center justify-between gap-3 hover:bg-black/40 transition-colors text-left"
+                            >
+                              <span className="text-xs font-bold uppercase tracking-widest text-emerald-500/90 flex items-center gap-1.5 truncate">
+                                <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 shrink-0 transition-transform ${topicoAberto ? 'rotate-180' : ''}`} />
+                                <BookOpen className="w-3.5 h-3.5 shrink-0" /> {topico.topico}
+                              </span>
+                              <span className="shrink-0 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                                {topico.questoes.length}
+                              </span>
+                            </button>
+                            {topicoAberto && (
+                              <div className="divide-y divide-white/5">
+                                {topico.questoes.map((questao) => (
                               <div key={questao.id} className="px-5 py-4 flex items-start justify-between gap-4 hover:bg-white/5 transition-colors">
                                 <div className="flex-1 min-w-0">
                                   <div className="text-zinc-300 line-clamp-2 leading-relaxed text-sm">
@@ -410,8 +427,10 @@ export default function BancoDeQuestoesAdmin() {
                               </div>
                             ))}
                           </div>
+                            )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
