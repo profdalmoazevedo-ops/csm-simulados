@@ -3,15 +3,61 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { ehCampoFaltante } from '@/lib/metadados';
-import { Plus, Search, Edit, Trash2, Database, BookOpen, AlertCircle, Filter, Wand2, RefreshCcw } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Database, BookOpen, AlertCircle, Filter, Wand2, RefreshCcw, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import Link from 'next/link';
 
+type Questao = {
+  id: string;
+  materia: string | null;
+  topico: string | null;
+  enunciado: string | null;
+  comentario_gabarito: string | null;
+  criado_em?: string;
+  [chave: string]: any;
+};
+
+type GrupoTopico = {
+  topico: string;
+  questoes: Questao[];
+};
+
+type GrupoMateria = {
+  materia: string;
+  total: number;
+  topicos: GrupoTopico[];
+};
+
+function agruparPorMateriaTopico(lista: Questao[]): GrupoMateria[] {
+  const porMateria = new Map<string, Map<string, Questao[]>>();
+
+  for (const q of lista) {
+    const materia = (q.materia || '').trim() || 'Sem Matéria';
+    const topico = (q.topico || '').trim() || 'Sem Tópico';
+
+    if (!porMateria.has(materia)) porMateria.set(materia, new Map());
+    const porTopico = porMateria.get(materia)!;
+    if (!porTopico.has(topico)) porTopico.set(topico, []);
+    porTopico.get(topico)!.push(q);
+  }
+
+  return [...porMateria.entries()]
+    .map(([materia, porTopico]) => ({
+      materia,
+      total: [...porTopico.values()].reduce((acc, arr) => acc + arr.length, 0),
+      topicos: [...porTopico.entries()]
+        .map(([topico, questoes]) => ({ topico, questoes }))
+        .sort((a, b) => a.topico.localeCompare(b.topico)),
+    }))
+    .sort((a, b) => a.materia.localeCompare(b.materia));
+}
+
 export default function BancoDeQuestoesAdmin() {
-  const [questoes, setQuestoes] = useState<any[]>([]);
+  const [questoes, setQuestoes] = useState<Questao[]>([]);
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState("");
   const [filtroTopico, setFiltroTopico] = useState("Todos");
   const [qtdFaltantes, setQtdFaltantes] = useState(0);
+  const [materiasExpandidas, setMateriasExpandidas] = useState<Record<string, boolean>>({});
 
   const [gerandoLote, setGerandoLote] = useState(false);
   const [progressoLote, setProgressoLote] = useState("");
@@ -120,6 +166,18 @@ export default function BancoDeQuestoesAdmin() {
     }
   }
 
+  function alternarMateria(materia: string) {
+    setMateriasExpandidas(prev => ({ ...prev, [materia]: !(prev[materia] ?? false) }));
+  }
+
+  function expandirTodas() {
+    setMateriasExpandidas(Object.fromEntries(materias.map(m => [m.materia, true])));
+  }
+
+  function recolherTodas() {
+    setMateriasExpandidas(Object.fromEntries(materias.map(m => [m.materia, false])));
+  }
+
   const topicosUnicos = Array.from(new Set(questoes.map(q => q.topico).filter(Boolean))).sort();
 
   const questoesFiltradas = questoes.filter(q => {
@@ -129,6 +187,9 @@ export default function BancoDeQuestoesAdmin() {
     const matchTopico = filtroTopico === "Todos" || q.topico === filtroTopico;
     return matchBusca && matchTopico;
   });
+
+  const materias = agruparPorMateriaTopico(questoesFiltradas);
+  const primeiraMateria = materias[0]?.materia;
 
   return (
     <div className="min-h-screen bg-[#09090b] text-[#e4e4e7] font-sans pb-20">
@@ -215,71 +276,117 @@ export default function BancoDeQuestoesAdmin() {
           </div>
         </div>
 
-        {/* Tabela de Questões */}
-        <div className="bg-[#131c2f]/30 rounded-2xl border border-white/5 overflow-hidden">
-          {loading ? (
-            <div className="p-12 text-center text-zinc-500 font-medium animate-pulse">Carregando acervo...</div>
-          ) : questoesFiltradas.length === 0 ? (
-            <div className="p-12 flex flex-col items-center justify-center text-zinc-500 text-center">
-              <AlertCircle className="w-12 h-12 mb-3 text-zinc-600" />
-              <p className="font-medium text-sm">Nenhuma questão passou nos filtros aplicados.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-zinc-400">
-                <thead className="bg-black/20 border-b border-white/5 text-xs uppercase font-bold tracking-widest text-zinc-500">
-                  <tr>
-                    <th className="px-6 py-4">Matéria / Tópico</th>
-                    <th className="px-6 py-4">Prévia do Enunciado</th>
-                    <th className="px-6 py-4 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {questoesFiltradas.map((questao) => (
-                    <tr key={questao.id} className="hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4 align-top w-1/4">
-                        <div className="flex flex-col gap-2">
-                          <span className="font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-md text-[10px] uppercase tracking-widest inline-block w-fit">
-                            {questao.materia || "Sem Matéria"}
-                          </span>
-                          <span className="text-zinc-500 text-xs font-medium flex items-center gap-1.5">
-                            <BookOpen className="w-3 h-3 shrink-0" /> {questao.topico || "Sem Tópico"}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 align-top w-2/4">
-                        <div className="text-zinc-300 line-clamp-2 leading-relaxed">
-                          {questao.enunciado ? questao.enunciado.replace(/<[^>]+>/g, '') : "Enunciado vazio"}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 align-top w-1/4 text-right">
-                        <div className="flex justify-end gap-2">
-                          <Link 
-                            href={`/admin/questoes/editar/${questao.id}`}
-                            className="p-2 text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors inline-block" 
-                            title="Editar Questão"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Link>
-                          <button 
-                            onClick={() => excluirQuestao(questao.id)}
-                            className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors" 
-                            title="Excluir Questão"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="bg-black/20 border-t border-white/5 p-4 text-right text-[10px] uppercase tracking-widest font-bold text-zinc-500">
-                Mostrando {questoesFiltradas.length} {questoesFiltradas.length === 1 ? 'questão' : 'questões'}
+        {/* Lista de Questões agrupada por Matéria → Tópico */}
+        {loading ? (
+          <div className="bg-[#131c2f]/30 rounded-2xl border border-white/5 p-12 text-center text-zinc-500 font-medium animate-pulse">
+            Carregando acervo...
+          </div>
+        ) : questoesFiltradas.length === 0 ? (
+          <div className="bg-[#131c2f]/30 rounded-2xl border border-white/5 p-12 flex flex-col items-center justify-center text-zinc-500 text-center">
+            <AlertCircle className="w-12 h-12 mb-3 text-zinc-600" />
+            <p className="font-medium text-sm">Nenhuma questão passou nos filtros aplicados.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Controles do agrupamento */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-zinc-500 font-medium">
+                  {materias.length} {materias.length === 1 ? 'matéria' : 'matérias'} · {questoesFiltradas.length} {questoesFiltradas.length === 1 ? 'questão' : 'questões'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={expandirTodas}
+                  className="p-2 text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                  title="Expandir todas as matérias"
+                >
+                  <ChevronsDownUp className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={recolherTodas}
+                  className="p-2 text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                  title="Recolher todas as matérias"
+                >
+                  <ChevronsUpDown className="w-4 h-4" />
+                </button>
               </div>
             </div>
-          )}
-        </div>
+
+            {materias.map((materia) => {
+              const aberta = materiasExpandidas[materia.materia] ?? (materiasExpandidas[materia.materia] === undefined && materia.materia === primeiraMateria);
+
+              return (
+                <div key={materia.materia} className="bg-[#131c2f]/30 border border-white/5 rounded-2xl overflow-hidden">
+                  {/* Cabeçalho da matéria */}
+                  <button
+                    type="button"
+                    onClick={() => alternarMateria(materia.materia)}
+                    className="w-full flex items-center justify-between gap-4 p-5 hover:bg-white/5 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <ChevronDown className={`w-5 h-5 text-zinc-500 shrink-0 transition-transform ${aberta ? 'rotate-180' : ''}`} />
+                      <div className="min-w-0">
+                        <p className="font-bold text-white text-sm truncate">{materia.materia}</p>
+                        <p className="text-xs text-zinc-500 mt-0.5">
+                          {materia.topicos.length === 1 ? `${materia.topicos.length} tópico` : `${materia.topicos.length} tópicos`}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md">
+                      {materia.total} {materia.total === 1 ? 'questão' : 'questões'}
+                    </span>
+                  </button>
+
+                  {/* Seções por tópico */}
+                  {aberta && (
+                    <div className="border-t border-white/5">
+                      {materia.topicos.map(topico => (
+                        <div key={topico.topico} className="border-b border-white/5 last:border-b-0">
+                          <div className="bg-black/20 px-5 py-2.5 flex items-center justify-between gap-3">
+                            <span className="text-xs font-bold uppercase tracking-widest text-emerald-500/90 flex items-center gap-1.5 truncate">
+                              <BookOpen className="w-3.5 h-3.5 shrink-0" /> {topico.topico}
+                            </span>
+                            <span className="shrink-0 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                              {topico.questoes.length}
+                            </span>
+                          </div>
+                          <div className="divide-y divide-white/5">
+                            {topico.questoes.map((questao) => (
+                              <div key={questao.id} className="px-5 py-4 flex items-start justify-between gap-4 hover:bg-white/5 transition-colors">
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-zinc-300 line-clamp-2 leading-relaxed text-sm">
+                                    {questao.enunciado ? questao.enunciado.replace(/<[^>]+>/g, '') : "Enunciado vazio"}
+                                  </div>
+                                </div>
+                                <div className="flex gap-2 shrink-0">
+                                  <Link 
+                                    href={`/admin/questoes/editar/${questao.id}`}
+                                    className="p-2 text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors inline-block" 
+                                    title="Editar Questão"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Link>
+                                  <button 
+                                    onClick={() => excluirQuestao(questao.id)}
+                                    className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors" 
+                                    title="Excluir Questão"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
