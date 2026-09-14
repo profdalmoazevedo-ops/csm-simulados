@@ -27,25 +27,46 @@ type GrupoMateria = {
   topicos: GrupoTopico[];
 };
 
+// Chave de agrupamento: ignora caixa e espaços extras (trim + espaços colapsados).
+const normalizarChave = (valor: string | null | undefined) =>
+  (valor || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+const rotuloMaisFrequente = (rotulos: Map<string, number>) =>
+  [...rotulos.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
+
 function agruparPorMateriaTopico(lista: Questao[]): GrupoMateria[] {
-  const porMateria = new Map<string, Map<string, Questao[]>>();
+  const porMateria = new Map<string, {
+    rotulos: Map<string, number>;
+    topicos: Map<string, { rotulos: Map<string, number>; questoes: Questao[] }>;
+  }>();
 
   for (const q of lista) {
     const materia = (q.materia || '').trim() || 'Sem Matéria';
     const topico = (q.topico || '').trim() || 'Sem Tópico';
 
-    if (!porMateria.has(materia)) porMateria.set(materia, new Map());
-    const porTopico = porMateria.get(materia)!;
-    if (!porTopico.has(topico)) porTopico.set(topico, []);
-    porTopico.get(topico)!.push(q);
+    const chaveMateria = normalizarChave(materia);
+    const chaveTopico = normalizarChave(topico);
+
+    if (!porMateria.has(chaveMateria)) {
+      porMateria.set(chaveMateria, { rotulos: new Map(), topicos: new Map() });
+    }
+    const grupoMateria = porMateria.get(chaveMateria)!;
+    grupoMateria.rotulos.set(materia, (grupoMateria.rotulos.get(materia) || 0) + 1);
+
+    if (!grupoMateria.topicos.has(chaveTopico)) {
+      grupoMateria.topicos.set(chaveTopico, { rotulos: new Map(), questoes: [] });
+    }
+    const grupoTopico = grupoMateria.topicos.get(chaveTopico)!;
+    grupoTopico.rotulos.set(topico, (grupoTopico.rotulos.get(topico) || 0) + 1);
+    grupoTopico.questoes.push(q);
   }
 
-  return [...porMateria.entries()]
-    .map(([materia, porTopico]) => ({
-      materia,
-      total: [...porTopico.values()].reduce((acc, arr) => acc + arr.length, 0),
-      topicos: [...porTopico.entries()]
-        .map(([topico, questoes]) => ({ topico, questoes }))
+  return [...porMateria.values()]
+    .map(({ rotulos, topicos }) => ({
+      materia: rotuloMaisFrequente(rotulos),
+      total: [...topicos.values()].reduce((acc, t) => acc + t.questoes.length, 0),
+      topicos: [...topicos.values()]
+        .map(t => ({ topico: rotuloMaisFrequente(t.rotulos), questoes: t.questoes }))
         .sort((a, b) => a.topico.localeCompare(b.topico)),
     }))
     .sort((a, b) => a.materia.localeCompare(b.materia));
@@ -178,13 +199,24 @@ export default function BancoDeQuestoesAdmin() {
     setMateriasExpandidas(Object.fromEntries(materias.map(m => [m.materia, false])));
   }
 
-  const topicosUnicos = Array.from(new Set(questoes.map(q => q.topico).filter(Boolean))).sort();
+  const topicosUnicos = (() => {
+    const mapa = new Map<string, Map<string, number>>();
+    for (const q of questoes) {
+      const bruto = (q.topico || '').trim();
+      if (!bruto) continue;
+      const chave = normalizarChave(bruto);
+      if (!mapa.has(chave)) mapa.set(chave, new Map());
+      const rotulos = mapa.get(chave)!;
+      rotulos.set(bruto, (rotulos.get(bruto) || 0) + 1);
+    }
+    return [...mapa.values()].map(rotuloMaisFrequente).sort();
+  })();
 
   const questoesFiltradas = questoes.filter(q => {
     const matchBusca = (q.materia || "").toLowerCase().includes(busca.toLowerCase()) ||
                        (q.topico || "").toLowerCase().includes(busca.toLowerCase()) ||
                        (q.enunciado || "").toLowerCase().includes(busca.toLowerCase());
-    const matchTopico = filtroTopico === "Todos" || q.topico === filtroTopico;
+    const matchTopico = filtroTopico === "Todos" || normalizarChave(q.topico) === normalizarChave(filtroTopico);
     return matchBusca && matchTopico;
   });
 
