@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar"; // Importe a NavBar aqui
+import AutoLogout from "@/components/AutoLogout";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,6 +21,8 @@ export default function RootLayout({
       <body className={inter.className}>
         {/* A NavBar ficará fixa no topo */}
         <Navbar />
+        {/* Encerra a sessão por inatividade */}
+        <AutoLogout />
         {/* O conteúdo das páginas será renderizado aqui embaixo */}
         {children}
       </body>

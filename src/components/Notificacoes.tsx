@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/hooks/useAuth";
 import { Bell, ExternalLink } from "lucide-react";
 import Link from "next/link";
 
@@ -20,12 +21,12 @@ export default function ComponenteNotificacoes() {
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
   const [naoLidasCount, setNaoLidasCount] = useState(0);
   const [menuAberto, setMenuAberto] = useState(false);
-  const [alunoId, setAlunoId] = useState<string | null>(null);
+  const { user } = useAuth();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    inicializarNotificacoes();
+  const alunoId = user?.id ?? null;
 
+  useEffect(() => {
     function cliqueFora(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setMenuAberto(false);
@@ -35,53 +36,57 @@ export default function ComponenteNotificacoes() {
     return () => document.removeEventListener("mousedown", cliqueFora);
   }, []);
 
-  async function inicializarNotificacoes() {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return;
-      
-      const userId = session.user.id;
-      const userEmail = session.user.email;
-      setAlunoId(userId);
-      
-      const emailAdmin = "profdalmoazevedo@gmail.com";
-      const isAdmin = userEmail === emailAdmin;
+  useEffect(() => {
+    let ativo = true;
 
-      // 1. Puxa as notificações
-      const { data: todasNotif } = await supabase
-        .from("notificacoes")
-        .select("*")
-        .order("criado_em", { ascending: false })
-        .limit(50); // Limite de segurança para não pesar o client-side
+    (async () => {
+      await Promise.resolve();
 
-      if (!todasNotif) return;
+      if (!ativo) return;
 
-      // 2. Filtro de Exibição Baseado no Banco de Dados
-      const notificacoesFiltradas = todasNotif.filter(n => {
-        if (isAdmin) {
-          // Admin vê avisos do sistema, alertas administrativos ou chamados
-          return n.tipo === 'admin_alert' || n.titulo.includes("NOVO SUPORTE") || !n.aluno_id;
-        } else {
-          // Aluno vê notificações direcionadas a ele (aluno_id) ou globais (aluno_id null / publico_alvo 'todos')
-          return n.aluno_id === userId || !n.aluno_id || n.publico_alvo === 'todos';
-        }
-      });
+      const usuario = user;
+      if (!usuario) {
+        setNotificacoes([]);
+        setNaoLidasCount(0);
+        return;
+      }
 
-      // 3. Verifica quais notificações já foram lidas por este usuário
-      const { data: lidasNotif } = await supabase
-        .from("notificacoes_lidas")
-        .select("notificacao_id")
-        .eq("aluno_id", userId);
+      try {
+        const isAdmin = usuario.email === "profdalmoazevedo@gmail.com";
 
-      const idsLidas = new Set(lidasNotif?.map(l => l.notificacao_id) || []);
+        const [todasNotif, lidasNotif] = await Promise.all([
+          supabase
+            .from("notificacoes")
+            .select("*")
+            .order("criado_em", { ascending: false })
+            .limit(50),
+          supabase
+            .from("notificacoes_lidas")
+            .select("notificacao_id")
+            .eq("aluno_id", usuario.id),
+        ]);
 
-      setNotificacoes(notificacoesFiltradas);
-      setNaoLidasCount(notificacoesFiltradas.filter(n => !idsLidas.has(n.id)).length);
+        if (!ativo) return;
 
-    } catch (err) {
-      console.error("Erro ao carregar notificações:", err);
-    }
-  }
+        const filtradas = (todasNotif.data || []).filter(n => {
+          if (isAdmin) {
+            return n.tipo === 'admin_alert' || n.titulo.includes("NOVO SUPORTE") || !n.aluno_id;
+          } else {
+            return n.aluno_id === usuario.id || !n.aluno_id || n.publico_alvo === 'todos';
+          }
+        });
+
+        const idsLidas = new Set(lidasNotif.data?.map(l => l.notificacao_id) || []);
+
+        setNotificacoes(filtradas);
+        setNaoLidasCount(filtradas.filter(n => !idsLidas.has(n.id)).length);
+      } catch (err) {
+        console.error("Erro ao carregar notificações:", err);
+      }
+    })();
+
+    return () => { ativo = false; };
+  }, [user]);
 
   async function abrirMenuEMarcarComoLidas() {
     setMenuAberto(!menuAberto);

@@ -67,6 +67,31 @@ export default function Dashboard() {
           }
         }
 
+        // Dispara as consultas independentes em paralelo (sem efeito cascata)
+        const [resStats, resTentativas, resTematicos, resAndamento] = await Promise.all([
+          user
+            ? supabase.rpc('obter_estatisticas_aluno', { p_aluno: user.id })
+            : Promise.resolve({ data: null, error: null }),
+          user
+            ? supabase.from('historico_tentativas')
+                .select('data_conclusao, total_acertos, total_questoes, simulado_id')
+                .eq('aluno_id', user.id)
+                .order('data_conclusao', { ascending: true })
+            : Promise.resolve({ data: null, error: null }),
+          supabase
+            .from('simulados')
+            .select('id, titulo, data_liberacao, regra_subtracao')
+            .eq('tipo', 'tematico_professor')
+            .eq('visivel', true)
+            .order('data_liberacao', { ascending: false }),
+          idsEmAndamento.length > 0
+            ? supabase
+                .from('simulados')
+                .select('id, titulo')
+                .in('id', idsEmAndamento)
+            : Promise.resolve({ data: null, error: null }),
+        ]);
+
         let bloco: BlocoContinuar = { tipo: 'nenhum' };
 
         if (user) {
@@ -74,7 +99,7 @@ export default function Dashboard() {
           const nome = user.user_metadata?.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'Aluno';
           setNomeAluno(nome.charAt(0).toUpperCase() + nome.slice(1));
 
-          const { data: stats } = await supabase.rpc('obter_estatisticas_aluno', { p_aluno: user.id });
+          const stats = resStats.data as { total_respondidas?: number; total_acertos?: number }[] | null;
 
           const totalResolvidas = stats?.[0]?.total_respondidas || 0;
           const totalAcertos = stats?.[0]?.total_acertos || 0;
@@ -88,13 +113,7 @@ export default function Dashboard() {
             });
           }
 
-          const { data: tentativas } = await supabase
-            .from('historico_tentativas')
-            .select('data_conclusao, total_acertos, total_questoes, simulado_id')
-            .eq('aluno_id', user.id)
-            .order('data_conclusao', { ascending: true });
-
-          conclusoesUsuario = (tentativas || []) as TentativaRegistro[];
+          conclusoesUsuario = (resTentativas.data || []) as TentativaRegistro[];
 
           if (conclusoesUsuario.length > 0) {
             const datasAtividade = new Set(conclusoesUsuario.map(t => chaveDataLocal(new Date(t.data_conclusao))));
@@ -135,23 +154,11 @@ export default function Dashboard() {
           }
         }
 
-        // Provas temáticas disponíveis (para o card "Continuar de onde parou")
-        const { data: tematicos } = await supabase
-          .from('simulados')
-          .select('id, titulo, data_liberacao, regra_subtracao')
-          .eq('tipo', 'tematico_professor')
-          .eq('visivel', true)
-          .order('data_liberacao', { ascending: false });
-
-        simuladosTematicos = (tematicos || []) as typeof simuladosTematicos;
+        simuladosTematicos = (resTematicos.data || []) as typeof simuladosTematicos;
 
         // 1ª prioridade: prova em andamento
+        const dadosAndamento = resAndamento.data as { id: string; titulo: string }[] | null;
         if (idsEmAndamento.length > 0) {
-          const { data: dadosAndamento } = await supabase
-            .from('simulados')
-            .select('id, titulo')
-            .in('id', idsEmAndamento);
-
           const primeiro = dadosAndamento?.[0];
           if (primeiro) {
             bloco = { tipo: 'andamento', id: primeiro.id, titulo: primeiro.titulo };

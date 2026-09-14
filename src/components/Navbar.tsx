@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
 import Notificacoes from '@/components/Notificacoes';
 import { 
   Home, 
@@ -21,21 +22,9 @@ export default function Navbar() {
   const router = useRouter();
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const { user } = useAuth();
 
-  useEffect(() => {
-    async function checkUser() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserEmail(user.email ?? null);
-        if (user.email === 'profdalmoazevedo@gmail.com') {
-          setIsAdmin(true);
-        }
-      }
-    }
-    checkUser();
-  }, []);
+  const isAdmin = user?.email === 'profdalmoazevedo@gmail.com';
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
