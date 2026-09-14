@@ -199,7 +199,13 @@ export default function BancoDeQuestoesAdmin() {
 
   function expandirTodas() {
     setMateriasExpandidas(Object.fromEntries(materias.map(m => [m.materia, true])));
-    setTopicosColapsados({});
+    const todosTopicos: Record<string, boolean> = {};
+    for (const m of materias) {
+      for (const t of m.topicos) {
+        todosTopicos[`${normalizarChave(m.materia)}||${normalizarChave(t.topico)}`] = false;
+      }
+    }
+    setTopicosColapsados(todosTopicos);
   }
 
   function recolherTodas() {
@@ -382,7 +388,7 @@ export default function BancoDeQuestoesAdmin() {
                       {materia.topicos.map(topico => {
                         const chaveMateria = normalizarChave(materia.materia);
                         const chaveTopicoTopico = normalizarChave(topico.topico);
-                        const topicoAberto = !topicosColapsados[`${chaveMateria}||${chaveTopicoTopico}`];
+                        const topicoAberto = topicosColapsados[`${chaveMateria}||${chaveTopicoTopico}`] === false;
 
                         return (
                           <div key={`${chaveMateria}||${topico.topico}`} className="border-b border-white/5 last:border-b-0">
