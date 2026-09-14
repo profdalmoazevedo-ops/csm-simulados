@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar"; // Importe a NavBar aqui
 import AutoLogout from "@/components/AutoLogout";
+import ProtegerRota from "@/components/ProtegerRota"; // Redireciona visitantes para /auth
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,8 +24,11 @@ export default function RootLayout({
         <Navbar />
         {/* Encerra a sessão por inatividade */}
         <AutoLogout />
-        {/* O conteúdo das páginas será renderizado aqui embaixo */}
-        {children}
+        {/* Redireciona visitantes para /auth (exceto rotas públicas) */}
+        <ProtegerRota>
+          {/* O conteúdo das páginas será renderizado aqui embaixo */}
+          {children}
+        </ProtegerRota>
       </body>
     </html>
   );
