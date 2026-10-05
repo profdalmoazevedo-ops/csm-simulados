@@ -6,6 +6,30 @@ import { Filter, Search, Loader2, BookOpen, CheckCircle2, XCircle, MessageSquare
 
 const TAMANHO_PAGINA = 15;
 
+type Situacao = 'todas' | 'nao_respondidas' | 'erradas' | 'acertadas';
+
+const OPCOES_SITUACAO: { valor: Situacao; rotulo: string }[] = [
+  { valor: 'todas', rotulo: 'Todas' },
+  { valor: 'nao_respondidas', rotulo: 'Não respondidas' },
+  { valor: 'erradas', rotulo: 'Só as que errei' },
+  { valor: 'acertadas', rotulo: 'Só as que acertei' }
+];
+
+const OPCOES_PERIODO: { valor: string; rotulo: string }[] = [
+  { valor: '', rotulo: 'Qualquer data' },
+  { valor: '7d', rotulo: 'Últimos 7 dias' },
+  { valor: '1m', rotulo: 'Último mês' },
+  { valor: '3m', rotulo: 'Últimos 3 meses' },
+  { valor: '6m', rotulo: 'Últimos 6 meses' }
+];
+
+const OPCOES_ORDEM: { valor: string; rotulo: string }[] = [
+  { valor: 'id', rotulo: 'Ordem padrão' },
+  { valor: 'aleatorio', rotulo: 'Aleatória' },
+  { valor: 'recentes', rotulo: 'Mais recentes' },
+  { valor: 'antigas', rotulo: 'Mais antigas' }
+];
+
 const DropdownBuscavel = ({ label, placeholder, opcoes, valor, setValor, disabled = false }: { label: string, placeholder: string, opcoes: any[], valor: string, setValor: (v: string) => void, disabled?: boolean }) => {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState('');
@@ -70,6 +94,7 @@ export default function BancoDeQuestoes() {
     materias: [] as string[],
     anos: [] as number[],
     cargos: [] as string[],
+    orgaos: [] as string[],
     formatos: [] as string[],
     topicos: [] as string[]
   });
@@ -78,8 +103,14 @@ export default function BancoDeQuestoes() {
   const [materiaSelecionada, setMateriaSelecionada] = useState('');
   const [anoSelecionado, setAnoSelecionado] = useState('');
   const [cargoSelecionado, setCargoSelecionado] = useState('');
+  const [orgaoSelecionado, setOrgaoSelecionado] = useState('');
   const [formatoSelecionado, setFormatoSelecionado] = useState('');
   const [topicoSelecionado, setTopicoSelecionado] = useState('');
+  const [situacao, setSituacao] = useState<Situacao>('todas');
+  const [periodo, setPeriodo] = useState('');
+  const [ordem, setOrdem] = useState('id');
+
+  const [paginaAtual, setPaginaAtual] = useState(0);
 
   const [selecoes, setSelecoes] = useState<Record<string, string>>({});
   const [respostas, setRespostas] = useState<Record<string, { marcada: string; correta: boolean }>>({});
@@ -114,6 +145,7 @@ export default function BancoDeQuestoes() {
           materias: [...new Set(valoresDe('materia'))].sort(),
           anos: [...new Set(valoresDe('ano').map(v => parseInt(v)))].filter(n => !isNaN(n)).sort((a, b) => b - a),
           cargos: [...new Set(valoresDe('cargo'))].sort(),
+          orgaos: [...new Set(valoresDe('orgao'))].sort(),
           formatos: [...new Set(valoresDe('tipo_questao'))].sort(),
           topicos: []
         });
@@ -142,32 +174,47 @@ export default function BancoDeQuestoes() {
     }
   }, [materiaSelecionada]);
 
+  // Filtros, ordenação, situação e paginação rodam no banco: excluir as questões
+  // já respondidas exigiria uma lista de ids que não cabe na URL, e o contador
+  // só é exato se o total for calculado com os mesmos filtros da página.
   const buscarQuestoes = async (pagina = 0) => {
     if (pagina === 0) setLoading(true);
     else setCarregandoMais(true);
 
     try {
-      const inicio = pagina * TAMANHO_PAGINA;
-      const fim = inicio + TAMANHO_PAGINA - 1;
+      const { data, error } = await supabase.rpc('obter_pagina_questoes', {
+        p_banca: bancaSelecionada || null,
+        p_cargo: cargoSelecionado || null,
+        p_orgao: orgaoSelecionado || null,
+        p_materia: materiaSelecionada || null,
+        p_topico: topicoSelecionado || null,
+        p_ano: anoSelecionado || null,
+        p_formato: formatoSelecionado || null,
+        p_periodo: periodo || null,
+        p_situacao: situacao,
+        p_ordem: ordem,
+        p_limite: TAMANHO_PAGINA,
+        p_offset: pagina * TAMANHO_PAGINA
+      });
 
-      let query = supabase
-        .from('questoes')
-        .select('*', { count: 'exact' })
-        .order('id')
-        .range(inicio, fim);
-
-      if (bancaSelecionada) query = query.eq('banca', bancaSelecionada);
-      if (materiaSelecionada) query = query.eq('materia', materiaSelecionada);
-      if (anoSelecionado) query = query.eq('ano', parseInt(anoSelecionado));
-      if (cargoSelecionado) query = query.eq('cargo', cargoSelecionado);
-      if (topicoSelecionado) query = query.eq('topico', topicoSelecionado);
-      if (formatoSelecionado) query = query.eq('tipo_questao', formatoSelecionado);
-
-      const { data, count, error } = await query;
       if (error) throw error;
 
-      setQuestoes(prev => (pagina === 0 ? data || [] : [...prev, ...(data || [])]));
-      setTotalResultados(count || 0);
+      const itens = data?.itens ?? [];
+
+      if (pagina === 0) {
+        setQuestoes(itens);
+      } else {
+        // Na ordem aleatória o banco pode repetir uma questão entre lotes; o
+        // offset avança pela página, não pelo tamanho da lista, para não pular
+        // conteúdo por causa dessa repetição.
+        setQuestoes(prev => {
+          const vistos = new Set(prev.map(q => q.id));
+          return [...prev, ...itens.filter((q: { id: string }) => !vistos.has(q.id))];
+        });
+      }
+
+      setPaginaAtual(pagina);
+      setTotalResultados(data?.total ?? 0);
     } catch (error) {
       console.error("Erro ao buscar questões:", error);
     } finally {
@@ -227,6 +274,7 @@ export default function BancoDeQuestoes() {
               <div className="space-y-4">
                 <DropdownBuscavel label="Banca" placeholder="Ex: FGV" opcoes={opcoes.bancas} valor={bancaSelecionada} setValor={setBancaSelecionada} />
                 <DropdownBuscavel label="Cargo" placeholder="Ex: Analista" opcoes={opcoes.cargos} valor={cargoSelecionado} setValor={setCargoSelecionado} />
+                <DropdownBuscavel label="Órgão" placeholder="Ex: Prefeitura..." opcoes={opcoes.orgaos} valor={orgaoSelecionado} setValor={setOrgaoSelecionado} />
                 
                 <div className="h-px bg-white/5 my-4"></div>
 
@@ -246,6 +294,63 @@ export default function BancoDeQuestoes() {
                   <DropdownBuscavel label="Ano" placeholder="Ex: 2024" opcoes={opcoes.anos} valor={anoSelecionado} setValor={setAnoSelecionado} />
                   <DropdownBuscavel label="Formato" placeholder="Ex: Múltipla" opcoes={opcoes.formatos} valor={formatoSelecionado} setValor={setFormatoSelecionado} />
                 </div>
+
+                <div className="h-px bg-white/5 my-4"></div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-2 text-zinc-400">Situação</label>
+                  <div className="space-y-2">
+                    {OPCOES_SITUACAO.map((opcao) => (
+                      <button
+                        key={opcao.valor}
+                        type="button"
+                        onClick={() => setSituacao(opcao.valor)}
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-colors ${
+                          situacao === opcao.valor
+                            ? 'bg-emerald-600 border-emerald-600 text-black'
+                            : 'bg-[#09090b] border-white/10 text-zinc-400 hover:border-white/25 hover:text-zinc-200'
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${situacao === opcao.valor ? 'bg-black' : 'bg-white/20'}`} />
+                        {opcao.rotulo}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="filtro-periodo" className="block text-xs font-bold uppercase mb-2 text-zinc-400">Adicionadas recentemente</label>
+                  <select
+                    id="filtro-periodo"
+                    value={periodo}
+                    onChange={(e) => setPeriodo(e.target.value)}
+                    className="w-full bg-[#09090b] border border-white/10 rounded-lg px-4 py-3 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500"
+                  >
+                    {OPCOES_PERIODO.map((opcao) => (
+                      <option key={opcao.valor} value={opcao.valor} className="bg-[#09090b]">{opcao.rotulo}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="filtro-ordem" className="block text-xs font-bold uppercase mb-2 text-zinc-400">Ordenação</label>
+                  <select
+                    id="filtro-ordem"
+                    value={ordem}
+                    onChange={(e) => setOrdem(e.target.value)}
+                    className="w-full bg-[#09090b] border border-white/10 rounded-lg px-4 py-3 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500"
+                  >
+                    {OPCOES_ORDEM.map((opcao) => (
+                      <option key={opcao.valor} value={opcao.valor} className="bg-[#09090b]">{opcao.rotulo}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {ordem === 'aleatorio' && (
+                  <p className="text-[10px] leading-relaxed text-amber-500/80 bg-amber-500/5 border border-amber-500/20 rounded-lg p-3">
+                    Na ordem aleatória cada página do “Carregar mais” é um novo sorteio, então algumas questões podem se repetir.
+                  </p>
+                )}
 
                 <button onClick={() => buscarQuestoes(0)} className="w-full mt-6 bg-emerald-600 hover:bg-emerald-500 text-black font-black uppercase text-[10px] tracking-widest py-4 rounded-xl flex items-center justify-center gap-2 transition-colors">
                   <Search className="w-4 h-4" /> Aplicar Filtros
@@ -385,7 +490,7 @@ export default function BancoDeQuestoes() {
             {questoes.length > 0 && questoes.length < totalResultados && (
               <div className="flex justify-center mt-8">
                 <button
-                  onClick={() => buscarQuestoes(Math.ceil(questoes.length / TAMANHO_PAGINA))}
+                  onClick={() => buscarQuestoes(paginaAtual + 1)}
                   disabled={carregandoMais}
                   className="px-8 py-3 bg-white/5 hover:bg-white/10 disabled:opacity-50 text-zinc-300 font-black uppercase text-[10px] tracking-widest rounded-xl transition-colors flex items-center gap-2 border border-white/10"
                 >
