@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Filter, Search, Loader2, BookOpen, CheckCircle2, XCircle, MessageSquare, ChevronDown, Hash, Copy, Check } from 'lucide-react';
+import { Filter, Loader2, BookOpen, CheckCircle2, XCircle, MessageSquare, ChevronDown, Hash, Copy, Check, RefreshCw } from 'lucide-react';
 
 const TAMANHO_PAGINA = 15;
 
@@ -111,6 +111,7 @@ export default function BancoDeQuestoes() {
   const [ordem, setOrdem] = useState('id');
 
   const [paginaAtual, setPaginaAtual] = useState(0);
+  const requisicaoAtual = useRef(0);
 
   const [selecoes, setSelecoes] = useState<Record<string, string>>({});
   const [respostas, setRespostas] = useState<Record<string, { marcada: string; correta: boolean }>>({});
@@ -154,7 +155,9 @@ export default function BancoDeQuestoes() {
     carregarOpcoesFiltro();
   }, []);
 
-  // 2. Atualiza a lista de Tópicos SEMPRE que a Matéria mudar (view de cascade)
+  // 2. Atualiza a lista de Tópicos SEMPRE que a Matéria mudar (view de cascade).
+  // O Tópico selecionado é zerado junto com a Matéria (ver selecionarMateria),
+  // e não aqui dentro, para não disparar uma busca com o tópico antigo.
   useEffect(() => {
     if (materiaSelecionada) {
       supabase
@@ -169,10 +172,14 @@ export default function BancoDeQuestoes() {
           }));
         });
     } else {
-      setTopicoSelecionado('');
       setOpcoes(prev => ({ ...prev, topicos: [] }));
     }
   }, [materiaSelecionada]);
+
+  const selecionarMateria = (materia: string) => {
+    setMateriaSelecionada(materia);
+    setTopicoSelecionado('');
+  };
 
   // Filtros, ordenação, situação e paginação rodam no banco: excluir as questões
   // já respondidas exigiria uma lista de ids que não cabe na URL, e o contador
@@ -180,6 +187,9 @@ export default function BancoDeQuestoes() {
   const buscarQuestoes = async (pagina = 0) => {
     if (pagina === 0) setLoading(true);
     else setCarregandoMais(true);
+
+    requisicaoAtual.current += 1;
+    const requisicao = requisicaoAtual.current;
 
     try {
       const { data, error } = await supabase.rpc('obter_pagina_questoes', {
@@ -196,6 +206,10 @@ export default function BancoDeQuestoes() {
         p_limite: TAMANHO_PAGINA,
         p_offset: pagina * TAMANHO_PAGINA
       });
+
+      // Com filtros aplicados automaticamente, uma resposta antiga pode chegar
+      // depois de uma mais nova; nesse caso é descartada em vez de sobrescrever.
+      if (requisicao !== requisicaoAtual.current) return;
 
       if (error) throw error;
 
@@ -216,16 +230,25 @@ export default function BancoDeQuestoes() {
       setPaginaAtual(pagina);
       setTotalResultados(data?.total ?? 0);
     } catch (error) {
-      console.error("Erro ao buscar questões:", error);
+      if (requisicao === requisicaoAtual.current) console.error("Erro ao buscar questões:", error);
     } finally {
-      setLoading(false);
-      setCarregandoMais(false);
+      // Só a requisição mais recente pode desligar os indicadores: se uma
+      // resposta velha terminasse agora, ela apagaria o spinner de uma
+      // requisição nova que ainda está em andamento.
+      if (requisicao === requisicaoAtual.current) {
+        setLoading(false);
+        setCarregandoMais(false);
+      }
     }
   };
 
+  // Carrega no primeiro render e a cada mudança de filtro: contador e lista
+  // reagem sozinhos, sem depender do botão. O botão "Aplicar Filtros" continua
+  // existindo como refresh manual (útil depois de responder uma questão, que
+  // também altera o resultado dos filtros de situação).
   useEffect(() => {
-    buscarQuestoes();
-  }, []);
+    buscarQuestoes(0);
+  }, [bancaSelecionada, cargoSelecionado, orgaoSelecionado, materiaSelecionada, topicoSelecionado, anoSelecionado, formatoSelecionado, situacao, periodo, ordem]);
 
   const selecionarAlternativa = (questaoId: string, letra: string) => {
     if (respostas[questaoId]) return;
@@ -265,7 +288,7 @@ export default function BancoDeQuestoes() {
           
           {/* Painel de Filtros Completo */}
           <div className="w-full lg:w-1/4">
-            <div className="bg-[#131c2f]/30 border border-white/5 p-6 rounded-2xl sticky top-6">
+            <div className="bg-[#131c2f]/30 border border-white/5 p-6 rounded-2xl sticky top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
               <div className="flex items-center gap-2 mb-6 text-white">
                 <Filter className="w-5 h-5 text-emerald-500" />
                 <h3 className="font-bold">Filtros</h3>
@@ -278,7 +301,7 @@ export default function BancoDeQuestoes() {
                 
                 <div className="h-px bg-white/5 my-4"></div>
 
-                <DropdownBuscavel label="Matéria" placeholder="Ex: Direito Constitucional" opcoes={opcoes.materias} valor={materiaSelecionada} setValor={setMateriaSelecionada} />
+                <DropdownBuscavel label="Matéria" placeholder="Ex: Direito Constitucional" opcoes={opcoes.materias} valor={materiaSelecionada} setValor={selecionarMateria} />
                 <DropdownBuscavel 
                   label="Tópico" 
                   placeholder="Ex: Direitos Fundamentais" 
@@ -353,7 +376,7 @@ export default function BancoDeQuestoes() {
                 )}
 
                 <button onClick={() => buscarQuestoes(0)} className="w-full mt-6 bg-emerald-600 hover:bg-emerald-500 text-black font-black uppercase text-[10px] tracking-widest py-4 rounded-xl flex items-center justify-center gap-2 transition-colors">
-                  <Search className="w-4 h-4" /> Aplicar Filtros
+                  <RefreshCw className="w-4 h-4" /> Atualizar Resultado
                 </button>
                 {(totalResultados > 0 || questoes.length > 0) && (
                   <p className="text-center text-[10px] font-bold uppercase tracking-widest text-zinc-500 mt-4">

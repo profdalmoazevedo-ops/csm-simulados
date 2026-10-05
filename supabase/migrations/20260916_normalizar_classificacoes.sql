@@ -5,6 +5,13 @@
 -- minúsculas), adota como canônico o rótulo mais frequente e atualiza apenas as
 -- variantes minoritárias. Rodar várias vezes não altera nada.
 --
+-- Desempate: quando duas grafias têm a MESMA frequência, vence a mais limpa
+-- (menor comprimento depois de colapsar os espaços) e não a primeira
+-- alfabeticamente. Sem isso, "Prefeitura de Flores da Cunha  - RS" (espaço
+-- duplo) vencia de "Prefeitura de Flores da Cunha - RS", porque espaço ordena
+-- antes de "-", e o rótulo sujo sobrescrevia o limpo. Ver também
+-- 20260918_higienizar_espacos.sql, que limpa o que já ficou gravado.
+--
 -- Contexto: importações colam o mesmo rótulo com grafias diferentes, o que
 -- duplica opções nos filtros e fragmenta o agrupamento do Acervo. Exemplos reais
 -- encontrados: "Fontes Do Direito Administrativo" x "Fontes do Direito
@@ -18,7 +25,7 @@
 WITH canonico AS (
   SELECT
     lower(btrim(regexp_replace(banca, '\s+', ' ', 'g'))) AS chave,
-    (ARRAY_AGG(banca ORDER BY qtd DESC, banca))[1] AS valor_canonico
+    (ARRAY_AGG(banca ORDER BY qtd DESC, length(btrim(regexp_replace(banca, '\s+', ' ', 'g'))), banca))[1] AS valor_canonico
   FROM (
     SELECT banca, COUNT(*) AS qtd
     FROM questoes
@@ -38,7 +45,7 @@ WHERE q.banca IS NOT NULL
 WITH canonico AS (
   SELECT
     lower(btrim(regexp_replace(cargo, '\s+', ' ', 'g'))) AS chave,
-    (ARRAY_AGG(cargo ORDER BY qtd DESC, cargo))[1] AS valor_canonico
+    (ARRAY_AGG(cargo ORDER BY qtd DESC, length(btrim(regexp_replace(cargo, '\s+', ' ', 'g'))), cargo))[1] AS valor_canonico
   FROM (
     SELECT cargo, COUNT(*) AS qtd
     FROM questoes
@@ -58,7 +65,7 @@ WHERE q.cargo IS NOT NULL
 WITH canonico AS (
   SELECT
     lower(btrim(regexp_replace(materia, '\s+', ' ', 'g'))) AS chave,
-    (ARRAY_AGG(materia ORDER BY qtd DESC, materia))[1] AS valor_canonico
+    (ARRAY_AGG(materia ORDER BY qtd DESC, length(btrim(regexp_replace(materia, '\s+', ' ', 'g'))), materia))[1] AS valor_canonico
   FROM (
     SELECT materia, COUNT(*) AS qtd
     FROM questoes
@@ -78,7 +85,7 @@ WHERE q.materia IS NOT NULL
 WITH canonico AS (
   SELECT
     lower(btrim(regexp_replace(orgao, '\s+', ' ', 'g'))) AS chave,
-    (ARRAY_AGG(orgao ORDER BY qtd DESC, orgao))[1] AS valor_canonico
+    (ARRAY_AGG(orgao ORDER BY qtd DESC, length(btrim(regexp_replace(orgao, '\s+', ' ', 'g'))), orgao))[1] AS valor_canonico
   FROM (
     SELECT orgao, COUNT(*) AS qtd
     FROM questoes
@@ -98,7 +105,7 @@ WHERE q.orgao IS NOT NULL
 WITH canonico AS (
   SELECT
     lower(btrim(regexp_replace(topico, '\s+', ' ', 'g'))) AS chave,
-    (ARRAY_AGG(topico ORDER BY qtd DESC, topico))[1] AS valor_canonico
+    (ARRAY_AGG(topico ORDER BY qtd DESC, length(btrim(regexp_replace(topico, '\s+', ' ', 'g'))), topico))[1] AS valor_canonico
   FROM (
     SELECT topico, COUNT(*) AS qtd
     FROM questoes
