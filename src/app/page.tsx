@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import MuralAvisos from '@/components/MuralAvisos';
 import { Target, TrendingUp, Award, Loader2, ArrowRight, Flame, BarChart2, Play, CalendarClock, PenLine, BookX, GraduationCap, LogIn, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 
@@ -335,6 +336,8 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        <MuralAvisos />
 
         {/* Painel de Desempenho do Aluno */}
         <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-500 mb-6">Seu Desempenho</h2>
