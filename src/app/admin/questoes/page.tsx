@@ -114,59 +114,94 @@ export default function BancoDeQuestoesAdmin() {
       return;
     }
 
-    if (!confirm(`Deseja iniciar a geração de comentários para ${pendentes.length} questões pendentes? O processo será feito de forma segura e progressiva.`)) return;
+    if (!confirm(`Deseja iniciar a geração de comentários para ${pendentes.length} questões pendentes?`)) return;
 
     setGerandoLote(true);
-    let processadas = 0;
+
+    // Pool paralelo: várias questões ao mesmo tempo em vez de uma por vez,
+    // sem as antigas pausas fixas de 5 s entre cada questão.
+    const CONCORRENCIA = 4;
+    const MAX_TENTATIVAS = 3;
 
     const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-    try {
-      for (const q of pendentes) {
-        processadas++;
-        setProgressoLote(`Processando (${processadas}/${pendentes.length})...`);
+    // Em erro de cota (429), sobrecarga (503) ou infra (5xx), espera e tenta de
+    // novo com backoff progressivo. Qualquer outro erro é devolvido direto.
+    const chamarComRetry = async (payload: Record<string, unknown>) => {
+      let ultimaResposta: Response | null = null;
+      for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+        ultimaResposta = await fetch('/api/gerar-comentario', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
 
-        try {
-          const res = await fetch('/api/gerar-comentario', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              enunciado: q.enunciado,
-              tipo_questao: q.tipo_questao,
-              gabarito: q.gabarito,
-              alternativas: { A: q.alternativa_a, B: q.alternativa_b, C: q.alternativa_c, D: q.alternativa_d, E: q.alternativa_e }
-            })
-          });
+        const precisaRetry = ultimaResposta.status === 429 || ultimaResposta.status === 503 || ultimaResposta.status >= 500;
+        if (ultimaResposta.ok || !precisaRetry) return ultimaResposta;
 
-          const data = await res.json();
-          
-          if (res.ok && data.comentario) {
-            const { data: updatedData, error: updateError } = await supabase
-              .from('questoes')
-              .update({ comentario_gabarito: data.comentario })
-              .eq('id', q.id)
-              .select(); 
-
-            if (updateError) {
-              console.error(`Erro RLS/Supabase na questão ${q.id}:`, updateError);
-              throw updateError;
-            }
-            
-            if (!updatedData || updatedData.length === 0) {
-              console.error(`O RLS bloqueou o update da questão ${q.id} silenciosamente.`);
-            }
-
-          } else {
-            console.warn(`Aviso na questão ${q.id}:`, data.error || "Sem comentário gerado.");
-          }
-        } catch (err) {
-          console.error(`Falha ao processar/salvar a questão ${q.id}:`, err);
-        }
-
-        await sleep(5000);
+        if (tentativa < MAX_TENTATIVAS) await sleep(2000 * tentativa);
       }
+      return ultimaResposta!;
+    };
 
-      alert("🎉 Processo finalizado!");
+    let cursor = 0;
+    let ok = 0;
+    const falhas: { id: string; motivo: string }[] = [];
+
+    const processarQuestao = async (q: Questao) => {
+      try {
+        const res = await chamarComRetry({
+          enunciado: q.enunciado,
+          tipo_questao: q.tipo_questao,
+          gabarito: q.gabarito,
+          alternativas: { A: q.alternativa_a, B: q.alternativa_b, C: q.alternativa_c, D: q.alternativa_d, E: q.alternativa_e }
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.comentario) {
+          const { error: updateError } = await supabase
+            .from('questoes')
+            .update({ comentario_gabarito: data.comentario })
+            .eq('id', q.id);
+
+          if (updateError) throw updateError;
+          ok++;
+        } else {
+          throw new Error(data.error || "Sem comentário gerado.");
+        }
+      } catch (err) {
+        const mensagem = err instanceof Error ? err.message : String(err);
+        falhas.push({ id: q.id, motivo: mensagem });
+        console.error(`Falha na questão ${q.id}:`, err);
+      }
+    };
+
+    const trabalhador = async () => {
+      while (true) {
+        const indice = cursor++;
+        if (indice >= pendentes.length) return;
+
+        const feito = Math.min(cursor, pendentes.length);
+        setProgressoLote(`Processando (${feito}/${pendentes.length}) — ${ok} ok${falhas.length ? ` · ${falhas.length} com erro` : ""}`);
+
+        // Pequeno espaçamento aleatório para não estourar o limite de requisições por minuto.
+        await sleep(Math.floor(Math.random() * 500));
+
+        await processarQuestao(pendentes[indice]);
+      }
+    };
+
+    try {
+      await Promise.all(
+        Array.from({ length: Math.min(CONCORRENCIA, pendentes.length) }, () => trabalhador())
+      );
+
+      if (falhas.length > 0) {
+        alert(`Processo finalizado com ${ok} comentário(s) gerado(s) e ${falhas.length} falha(s).\n\nAs questões com falha continuam sem comentário — clique em "Gerar Comentários (IA)" novamente para tentar de novo, e o botão processa apenas as pendentes.`);
+      } else {
+        alert(`🎉 Processo finalizado! ${ok} comentário(s) gerado(s) com sucesso.`);
+      }
       carregarQuestoes(); 
     } catch (err: any) {
       alert("Erro ao processar lote: " + err.message);

@@ -15,7 +15,7 @@ export default function NovaQuestaoAdmin() {
   const [textoBruto, setTextoBruto] = useState("");
   const [gerandoComentario, setGerandoComentario] = useState(false);
   
-  const [faseLote, setFaseLote] = useState<'ocioso' | 'extraindo' | 'comentando' | 'finalizado'>('ocioso');
+  const [faseLote, setFaseLote] = useState<'ocioso' | 'extraindo' | 'finalizado'>('ocioso');
   const [progressoLote, setProgressoLote] = useState("");
   const [sucessoLote, setSucessoLote] = useState("");
 
@@ -188,43 +188,11 @@ export default function NovaQuestaoAdmin() {
         throw new Error("Nenhuma questão pôde ser extraída do texto.");
       }
 
-      // FASE 2: GERAÇÃO DE COMENTÁRIOS
-      setFaseLote('comentando');
-      setProgressoLote(`Gerando comentários cirúrgicos (0/${questoesSalvasTotais.length})...`);
-
-      for (let i = 0; i < questoesSalvasTotais.length; i++) {
-        const q = questoesSalvasTotais[i];
-        
-        try {
-          const resComentario = await fetch('/api/gerar-comentario', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              enunciado: q.enunciado,
-              tipo_questao: q.tipo_questao,
-              gabarito: q.gabarito,
-              alternativas: { A: q.alternativa_a, B: q.alternativa_b, C: q.alternativa_c, D: q.alternativa_d, E: q.alternativa_e }
-            })
-          });
-          
-          const dataComentario = await resComentario.json();
-          
-          if (dataComentario.comentario) {
-            await supabase.from('questoes').update({ comentario_gabarito: dataComentario.comentario }).eq('id', q.id);
-          }
-        } catch (e) {
-          console.warn(`Aviso: Falha ao gerar comentário para questão ID ${q.id}`);
-        }
-
-        setProgressoLote(`Gerando comentários cirúrgicos (${i + 1}/${questoesSalvasTotais.length})...`);
-        
-        if (i < questoesSalvasTotais.length - 1) {
-           await sleep(4500);
-        }
-      }
-
+      // Comentários saíram da importação de propósito: são gerados depois, pelo
+      // botão "Gerar Comentários (IA)" em Gestão do Acervo, que processa as
+      // pendentes em paralelo e é resumível se algo falhar no meio.
       setFaseLote('finalizado');
-      setSucessoLote(`🎉 Trabalho concluído! ${questoesSalvasTotais.length} questões estruturadas.`);
+      setSucessoLote(`🎉 Importação concluída! ${questoesSalvasTotais.length} questões estruturadas e salvas. Gere os comentários pelo botão "Gerar Comentários (IA)" em Gestão do Acervo.`);
       setTextoBruto("");
       
       setTimeout(() => {
@@ -424,17 +392,17 @@ export default function NovaQuestaoAdmin() {
                <p className="font-bold">{sucessoLote}</p>
                <p className="text-xs">Redirecionando para o acervo...</p>
              </div>
-          ) : faseLote === 'extraindo' || faseLote === 'comentando' ? (
+          ) : faseLote === 'extraindo' ? (
              <div className="bg-[#09090b] border border-emerald-500/20 p-8 rounded-xl flex flex-col items-center text-center gap-4 shadow-sm">
                <RefreshCcw className="w-8 h-8 text-emerald-500 animate-spin" />
                <div className="space-y-1">
                  <p className="font-bold text-white text-lg">Processando...</p>
                  <p className="text-sm font-medium text-emerald-500">{progressoLote}</p>
-               </div>
-               <div className="w-full bg-white/5 rounded-full h-2 mt-2 overflow-hidden">
-                 <div className={`h-2 bg-emerald-500 transition-all duration-500 ease-out ${faseLote === 'extraindo' ? 'w-1/4' : 'w-3/4 animate-pulse'}`}></div>
-               </div>
-             </div>
+</div>
+                <div className="w-full bg-white/5 rounded-full h-2 mt-2 overflow-hidden">
+                  <div className="h-2 bg-emerald-500 animate-pulse w-full"></div>
+                </div>
+              </div>
           ) : (
             <>
               <div className="flex items-center gap-3 text-emerald-400 mb-2">

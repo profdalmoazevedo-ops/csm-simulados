@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -61,11 +63,11 @@ export async function POST(request: Request) {
       const geminiApiKey = process.env.GEMINI_API_KEY;
       if (!geminiApiKey) throw new Error("GEMINI_API_KEY ausente.");
 
-      // 1ª Opção: O modelo PRO (Máxima inteligência e didática)
-      const urlPro = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-latest:generateContent?key=${geminiApiKey}`;
-      
-      // 2ª Opção (Fallback): O Flash mais atual da sua lista (Rápido, entra em ação se o PRO falhar)
-      const urlFlash = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${geminiApiKey}`;
+      // 1ª Opção: O Flash mais atual (Rápido — mesmo perfil de qualidade que o lote de importação usa)
+      const urlPrincipal = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiApiKey}`;
+
+      // 2ª Opção (Fallback): O Flash-Lite para fugir de congestionamento
+      const urlLite = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${geminiApiKey}`;
 
       const fetchConfig = {
         method: "POST",
@@ -85,19 +87,19 @@ export async function POST(request: Request) {
         })
       };
 
-      // TENTATIVA 1: Bate no modelo PRO
-      let geminiResponse = await fetch(urlPro, fetchConfig);
+      // TENTATIVA 1: Bate no Flash principal
+      let geminiResponse = await fetch(urlPrincipal, fetchConfig);
 
-      // Se o PRO der erro de sobrecarga (503) ou cota (429), tenta o FLASH automaticamente
+      // Se der erro de sobrecarga (503) ou cota (429), tenta o Flash-Lite automaticamente
       if (!geminiResponse.ok && (geminiResponse.status === 503 || geminiResponse.status === 429)) {
-         console.warn("⚠️ Modelo PRO sobrecarregado. Redirecionando para o 3.8 Flash...");
-         geminiResponse = await fetch(urlFlash, fetchConfig);
+         console.warn("⚠️ Modelo Flash principal sobrecarregado. Redirecionando para o Flash-Lite...");
+         geminiResponse = await fetch(urlLite, fetchConfig);
       }
 
-      // Se mesmo o Flash falhar, joga para o catch (que vai chamar a Groq)
+      // Se mesmo o Flash-Lite falhar, joga para o catch (que vai chamar a Groq)
       if (!geminiResponse.ok) {
         const errText = await geminiResponse.text();
-        throw new Error(`Google rejeitou ambas as chamadas (Pro e Flash): ${errText}`);
+        throw new Error(`Google rejeitou ambas as chamadas (Flash e Flash-Lite): ${errText}`);
       }
 
       const geminiData = await geminiResponse.json();
