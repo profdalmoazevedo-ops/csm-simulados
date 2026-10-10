@@ -70,7 +70,9 @@ export default function ComponenteNotificacoes() {
 
         const filtradas = (todasNotif.data || []).filter(n => {
           if (isAdmin) {
-            return n.tipo === 'admin_alert' || n.titulo.includes("NOVO SUPORTE") || !n.aluno_id;
+            // Admin enxerga avisos da plataforma + os próprios avisos pessoais
+            // (ex.: resposta de suporte), para não sumir com a sua conta de aluno.
+            return n.tipo === 'admin_alert' || n.titulo.includes("NOVO SUPORTE") || !n.aluno_id || n.aluno_id === usuario.id;
           } else {
             return n.aluno_id === usuario.id || !n.aluno_id || n.publico_alvo === 'todos';
           }
