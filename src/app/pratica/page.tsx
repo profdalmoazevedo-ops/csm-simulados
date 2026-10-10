@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import ReportarErroQuestao from '@/components/ReportarErroQuestao';
 import { Filter, Loader2, BookOpen, CheckCircle2, XCircle, MessageSquare, ChevronDown, Hash, Copy, Check, RefreshCw } from 'lucide-react';
 
 const TAMANHO_PAGINA = 15;
@@ -421,6 +422,7 @@ export default function BancoDeQuestoes() {
                       {questao.cargo && <span className="bg-white/5 px-3 py-1 rounded-md">{questao.cargo}</span>}
                       {questao.materia && <span className="bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-md">{questao.materia}</span>}
                       {questao.topico && <span className="bg-white/5 px-3 py-1 rounded-md">{questao.topico}</span>}
+                      <ReportarErroQuestao questaoId={questao.id} className="ml-auto" />
                     </div>
 
                     <div className="text-zinc-200 leading-relaxed mb-8 text-sm md:text-base whitespace-pre-wrap">

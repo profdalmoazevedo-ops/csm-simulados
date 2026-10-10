@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import ReportarErroQuestao from '@/components/ReportarErroQuestao';
 import { useParams, useRouter } from 'next/navigation';
 import { Loader2, CheckCircle2, XCircle, ArrowLeft, MessageSquare, Clock, Hash, Copy, Check, RotateCcw } from 'lucide-react';
 
@@ -410,6 +411,7 @@ export default function ResolucaoSimulado() {
                     {questao.cargo && <span className="bg-white/5 px-3 py-1 rounded">{questao.cargo}</span>}
                     {questao.materia && <span className="bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded">{questao.materia}</span>}
                     {questao.topico && <span className="bg-white/5 px-3 py-1 rounded">{questao.topico}</span>}
+                    <ReportarErroQuestao questaoId={questao.id} className="ml-auto" />
                   </div>
                 </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { uploadImagensSuporte, montarMensagemComImagens } from '@/lib/uploadImagem';
 import AnexadorImagem from '@/components/AnexadorImagem';
@@ -81,6 +82,7 @@ function HistoricoMensagem({ mensagem }: { mensagem: string }) {
 export default function GestaoSuporteAdmin() {
   const [chamados, setChamados] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [enunciados, setEnunciados] = useState<Record<string, string>>({});
   
   // Controle de Modal Unificado
   const [modalAcao, setModalAcao] = useState<{tipo: 'iniciar' | 'resolver' | null, chamado: any}>({ tipo: null, chamado: null });
@@ -111,6 +113,25 @@ export default function GestaoSuporteAdmin() {
           ordem[a.status as keyof typeof ordem] - ordem[b.status as keyof typeof ordem]
         );
         setChamados(chamadosOrdenados);
+
+        // Busca os enunciados das questões reportadas para exibir a prévia na fila.
+        const idsQuestoes = data.filter(c => c.questao_id).map(c => c.questao_id as string);
+        if (idsQuestoes.length > 0) {
+          const unicos = [...new Set(idsQuestoes)];
+          const { data: questoes } = await supabase
+            .from('questoes')
+            .select('id, enunciado')
+            .in('id', unicos);
+
+          if (questoes) {
+            const mapa: Record<string, string> = {};
+            for (const q of questoes) {
+              const texto = q.enunciado ? String(q.enunciado).replace(/<[^>]+>/g, '') : '';
+              if (texto) mapa[q.id] = texto;
+            }
+            setEnunciados(mapa);
+          }
+        }
       }
     } catch (err) {
       console.error("Erro ao carregar chamados:", err);
@@ -284,6 +305,35 @@ export default function GestaoSuporteAdmin() {
                 <span className="flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-zinc-500"/> {chamado.nome || 'Aluno não identificado'}</span>
                 <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-zinc-500"/> {chamado.email || 'Sem e-mail'}</span>
               </div>
+
+              {chamado.categoria === 'Erro em Questão' && chamado.questao_id && (
+                <div className="mb-5 p-5 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5" /> Questão reportada pelo aluno
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {enunciados[chamado.questao_id] && (
+                        <Link
+                          href={`/admin/questoes/editar/${chamado.questao_id}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-black text-[10px] font-black uppercase tracking-widest transition-colors"
+                        >
+                          <Check className="w-3.5 h-3.5" /> Corrigir questão
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                  {enunciados[chamado.questao_id] ? (
+                    <p className="text-xs text-zinc-300 leading-relaxed line-clamp-2">
+                      {enunciados[chamado.questao_id]}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-zinc-500">
+                      Questão {chamado.questao_id} não encontrada no acervo.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="bg-[#09090b] p-5 rounded-xl border border-white/5 mb-5">
                 <HistoricoMensagem mensagem={chamado.mensagem} />
