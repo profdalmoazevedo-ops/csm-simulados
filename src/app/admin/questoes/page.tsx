@@ -107,7 +107,13 @@ export default function BancoDeQuestoesAdmin() {
   }
 
   async function gerarComentariosEmLote() {
-    const pendentes = questoes.filter(q => !q.comentario_gabarito || q.comentario_gabarito === "Gerando comentário..." || q.comentario_gabarito === "");
+    // Pendente = sem comentário OU comentário que vira vazio após trim (ex.: só
+    // quebras de linha), que passaria batido pelo filtro antigo.
+    const pendentes = questoes.filter(q =>
+      !q.comentario_gabarito ||
+      q.comentario_gabarito.trim() === "" ||
+      q.comentario_gabarito === "Gerando comentário..."
+    );
     
     if (pendentes.length === 0) {
       alert("Todas as questões já possuem comentários gerados!");

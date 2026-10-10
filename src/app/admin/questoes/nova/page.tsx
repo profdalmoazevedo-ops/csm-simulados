@@ -17,6 +17,7 @@ export default function NovaQuestaoAdmin() {
   
   const [faseLote, setFaseLote] = useState<'ocioso' | 'extraindo' | 'finalizado'>('ocioso');
   const [progressoLote, setProgressoLote] = useState("");
+  const [barraLote, setBarraLote] = useState(0);
   const [sucessoLote, setSucessoLote] = useState("");
 
   const [formData, setFormData] = useState({
@@ -123,6 +124,7 @@ export default function NovaQuestaoAdmin() {
     setSalvando(true);
     setErro("");
     setFaseLote('extraindo');
+    setBarraLote(0);
 
     try {
       const blocosRaw = textoBruto.split(/(?=Questão\s+\d+)/i);
@@ -177,6 +179,9 @@ export default function NovaQuestaoAdmin() {
           questoesSalvasTotais = [...questoesSalvasTotais, ...data.questoes_inseridas];
         }
 
+        // Barra determinística: largura acompanha a quantidade real de pacotes
+        setBarraLote(Math.round(((i + 1) / lotesTexto.length) * 100));
+
         // 🚀 O SEGREDO: Pausa estratégica de 3 segundos antes de enviar o próximo lote
         if (i < lotesTexto.length - 1) {
           setProgressoLote(`Resfriando IA para manter velocidade... aguarde.`);
@@ -204,6 +209,7 @@ export default function NovaQuestaoAdmin() {
       console.error("Falha no lote:", err);
       setErro(err.message || "Erro inesperado ao processar o lote.");
       setFaseLote('ocioso');
+      setBarraLote(0);
     } finally {
       setSalvando(false);
     }
@@ -400,7 +406,7 @@ export default function NovaQuestaoAdmin() {
                  <p className="text-sm font-medium text-emerald-500">{progressoLote}</p>
 </div>
                 <div className="w-full bg-white/5 rounded-full h-2 mt-2 overflow-hidden">
-                  <div className="h-2 bg-emerald-500 animate-pulse w-full"></div>
+                  <div className="h-2 bg-emerald-500 transition-all duration-500" style={{ width: `${Math.max(3, barraLote)}%` }}></div>
                 </div>
               </div>
           ) : (
