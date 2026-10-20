@@ -1,12 +1,12 @@
-﻿import { supabase } from '@/lib/supabase';
-"use client"
+﻿"use client";
 
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Search, Trash2, X } from "lucide-react";
-import Link from 'next/link';
+import { supabase } from "@/lib/supabase";
+import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Search, Trash2 } from "lucide-react";
+import Link from "next/link";
 
 interface QuestaoResumo {
-  id: number;
+  id: string;
   banca: string | null;
   orgao: string | null;
   cargo: string | null;
@@ -17,7 +17,7 @@ interface QuestaoResumo {
 interface GrupoDuplicado {
   textoReferencia: string;
   quantidade: number;
-  ids: number[];
+  ids: string[];
   questoes: QuestaoResumo[];
 }
 
@@ -34,9 +34,9 @@ export default function AuditoriaDuplicadasQuestoes() {
   const [limite, setLimite] = useState(500);
   const [filtro, setFiltro] = useState("");
 
-  const [selecionados, setSelecionados] = useState<number[]>([]);
+  const [selecionados, setSelecionados] = useState<string[]>([]);
   const [excluindo, setExcluindo] = useState(false);
-  const [excluindoId, setExcluindoId] = useState<number | null>(null);
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
 
   const varrerBanco = async () => {
     setAnalisando(true);
@@ -55,7 +55,7 @@ export default function AuditoriaDuplicadasQuestoes() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Erro ao varrer o banco de quest§es.");
+        throw new Error(data.error || "Erro ao varrer o banco de questões.");
       }
 
       setRelatorio(data as RelatorioDuplicadasQuestoes);
@@ -82,13 +82,13 @@ export default function AuditoriaDuplicadasQuestoes() {
     );
   });
 
-  const toggleSelecionado = (id: number) => {
+  const toggleSelecionado = (id: string) => {
     setSelecionados((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
 
-  const toggleGrupo = (ids: number[]) => {
+  const toggleGrupo = (ids: string[]) => {
     const todosSelecionados = ids.every((id) => selecionados.includes(id));
     if (todosSelecionados) {
       setSelecionados((prev) => prev.filter((id) => !ids.includes(id)));
@@ -99,86 +99,164 @@ export default function AuditoriaDuplicadasQuestoes() {
 
   const limparSelecao = () => setSelecionados([]);
 
+  // Apaga a questão e tudo que estiver vinculado a ela.
+  //
+  // O banco propaga ON DELETE CASCADE, então as respostas de alunos, notas e
+  // vínculos com simulados saem junto com a questão. As três limpeza abaixo
+  // são belt-and-suspenders: o RLS esconde respostas de outros alunos do
+  // professor (ele só enxerga as próprias), então quem apaga de fato é o
+  // cascade do banco.
+  const excluirQuestao = async (
+    id: string
+  ): Promise<{ ok: boolean; mensagem?: string; vinculosSimulado: number }> => {
+    const { count: vinculosCount, error: erroLeitura } = await supabase
+      .from("simulado_questoes")
+      .select("id", { count: "exact", head: true })
+      .eq("questao_id", id);
+    if (erroLeitura) {
+      return { ok: false, mensagem: erroLeitura.message, vinculosSimulado: 0 };
+    }
 
+    const vinculosSimulado = vinculosCount ?? 0;
 
-  const excluirSelecionadas = async () => {
-    if (selecionados.length === 0) return;
-    const confirmar = confirm(`Excluir permanentemente ${selecionados.length} questao(oes) selecionada(s)?\n\nEsta acao NAO PODE ser desfeita.`);
+    for (const tabela of ["simulado_questoes", "respostas_alunos", "notas_questoes"]) {
+      const { error } = await supabase.from(tabela).delete().eq("questao_id", id);
+      if (error) {
+        return {
+          ok: false,
+          mensagem: `Não foi possível limpar os registros de ${tabela}: ${error.message}`,
+          vinculosSimulado,
+        };
+      }
+    }
+
+    const { error } = await supabase.from("questoes").delete().eq("id", id);
+    if (error) {
+      return { ok: false, mensagem: error.message, vinculosSimulado };
+    }
+
+    return { ok: true, vinculosSimulado };
+  };
+
+  const excluirUnica = async (id: string) => {
+    const confirmar = confirm(
+      `Excluir permanentemente a questão #${id}?\n\nEsta ação NÃO PODE ser desfeita.\n\nAs respostas de alunos e os vínculos com simulados dessa questão também serão removidos.`
+    );
     if (!confirmar) return;
 
     setExcluindo(true);
+    setExcluindoId(id);
     try {
-      for (const id of selecionados) {
-        const { error } = await supabase.from('questoes').delete().eq('id', id);
-        if (error) {
-          alert('Nao foi possivel excluir a questao: ' + error.message);
-          setExcluindo(false);
-          return;
-        }
+      const resultado = await excluirQuestao(id);
+      if (!resultado.ok) {
+        alert("Não foi possível excluir a questão: " + (resultado.mensagem ?? "erro desconhecido"));
+        return;
       }
-      setRelatorio((prev: any) => {
+
+      const extras =
+        resultado.vinculosSimulado > 0
+          ? `\n\n${resultado.vinculosSimulado} vínculo(s) com simulado(s) também foram removidos.`
+          : "";
+      alert(`Questão excluída com sucesso.${extras}`);
+
+      // Remove dos grupos
+      setRelatorio((prev) => {
         if (!prev) return prev;
-        const idsSet = new Set(selecionados.map(String));
         const novosGrupos = prev.duplicadas
-          .map((grupo: any) => ({
+          .map((grupo) => ({
             ...grupo,
-            questoes: grupo.questoes.filter((q: any) => !idsSet.has(String(q.id))),
-            ids: grupo.ids.filter((gid: any) => !idsSet.has(String(gid))),
-            quantidade: grupo.questoes.filter((q: any) => !idsSet.has(String(q.id))).length,
+            questoes: grupo.questoes.filter((q) => q.id !== id),
+            ids: grupo.ids.filter((gid) => gid !== id),
+            quantidade: grupo.questoes.filter((q) => q.id !== id).length,
           }))
-          .filter((grupo: any) => grupo.quantidade >= 2);
+          .filter((grupo) => grupo.quantidade >= 2);
         return {
           ...prev,
           duplicadas: novosGrupos,
           totalDuplicadasEncontradas: novosGrupos.length,
         };
       });
-      setSelecionados([]);
-      alert('Questoes excluidas com sucesso.');
+      setSelecionados((prev) => prev.filter((s) => s !== id));
     } catch (err: any) {
-      alert('Erro ao excluir em lote: ' + err.message);
+      alert("Erro ao excluir questão: " + err.message);
+    } finally {
+      setExcluindo(false);
+      setExcluindoId(null);
+    }
+  };
+
+  const excluirSelecionadas = async () => {
+    if (selecionados.length === 0) return;
+    const confirmar = confirm(
+      `Excluir permanentemente ${selecionados.length} questão(ões) selecionada(s)?\n\nEsta ação NÃO PODE ser desfeita.\n\nAs respostas de alunos e os vínculos com simulados dessas questões também serão removidos.`
+    );
+    if (!confirmar) return;
+
+    setExcluindo(true);
+    const sucessoIds = new Set<string>();
+    const falhas: Array<{ id: string; motivo: string }> = [];
+
+    try {
+      for (const id of selecionados) {
+        const resultado = await excluirQuestao(id);
+        if (resultado.ok) {
+          sucessoIds.add(id);
+        } else {
+          falhas.push({ id, motivo: resultado.mensagem ?? "erro desconhecido" });
+        }
+      }
+
+      // Remove apenas as com sucesso
+      setRelatorio((prev) => {
+        if (!prev) return prev;
+        const novosGrupos = prev.duplicadas
+          .map((grupo) => ({
+            ...grupo,
+            questoes: grupo.questoes.filter((q) => !sucessoIds.has(q.id)),
+            ids: grupo.ids.filter((gid) => !sucessoIds.has(gid)),
+            quantidade: grupo.questoes.filter((q) => !sucessoIds.has(q.id)).length,
+          }))
+          .filter((grupo) => grupo.quantidade >= 2);
+        return {
+          ...prev,
+          duplicadas: novosGrupos,
+          totalDuplicadasEncontradas: novosGrupos.length,
+        };
+      });
+
+      // Limpa seleção das excluídas com sucesso
+      setSelecionados((prev) => prev.filter((s) => !sucessoIds.has(s)));
+
+      // Mostra relatório detalhado
+      let mensagem = `Exclusão em lote finalizada.\n\nSucesso: ${sucessoIds.size}\nFalhas: ${falhas.length}`;
+      if (falhas.length > 0) {
+        mensagem += "\n\nDetalhes das falhas:";
+        for (const f of falhas.slice(0, 10)) {
+          mensagem += `\n\n#${f.id}:\n${f.motivo}`;
+        }
+        if (falhas.length > 10) {
+          mensagem += `\n\n... e mais ${falhas.length - 10} falha(s).`;
+        }
+      }
+      alert(mensagem);
+    } catch (err: any) {
+      alert("Erro ao excluir em lote: " + err.message);
     } finally {
       setExcluindo(false);
     }
   };
-  const excluirUnica = async (id: number) => {
-    await excluirQuestao(id);
-  };
-  async function excluirQuestao(id: number | string) {
-    if (!confirm("Tem certeza absoluta que deseja remover esta questao permanentemente do acervo?")) return;
-    try {
-      const { error } = await supabase.from('questoes').delete().eq('id', id);
-      if (error) throw error;
-      setRelatorio((prev: any) => {
-        if (!prev) return prev;
-        const novosGrupos = prev.duplicadas
-          .map((grupo: any) => ({
-            ...grupo,
-            questoes: grupo.questoes.filter((q: any) => String(q.id) !== String(id)),
-            ids: grupo.ids.filter((gid: any) => String(gid) !== String(id)),
-            quantidade: grupo.questoes.filter((q: any) => String(q.id) !== String(id)).length,
-          }))
-          .filter((grupo: any) => grupo.quantidade >= 2);
-        return { ...prev, duplicadas: novosGrupos, totalDuplicadasEncontradas: novosGrupos.length };
-      });
-    } catch (error: any) {
-      alert("Nao foi possivel excluir a questao: " + error.message);
-    }
-  }
-
-
 
   return (
     <div className="min-h-screen bg-[#09090b] text-[#e4e4e7] font-sans pb-20">
       <div className="max-w-6xl mx-auto px-6 pt-12 space-y-8">
         <div className="space-y-3">
           <h1 className="text-3xl font-serif text-white italic uppercase">
-            Auditoria de Duplicadas ù Banco de Quest§es
+            Auditoria de Duplicadas — Banco de Questões
           </h1>
           <p className="text-zinc-400 max-w-3xl">
             Analisa todo o acervo da tabela <span className="text-zinc-200 font-medium">questoes</span> e aponta grupos com
-            enunciados idÛnticos (ap¾s normalizaþÒo de tags HTML, espaþos e mai·sculas/min·sculas). Ideal para limpar
-            repetiþ§es no banco geral.
+            enunciados idênticos (após normalização de tags HTML, espaços e maiúsculas/minúsculas). Ideal para limpar
+            repetições no banco geral.
           </p>
         </div>
 
@@ -202,7 +280,7 @@ export default function AuditoriaDuplicadasQuestoes() {
                 </select>
               </div>
               <div className="text-xs text-zinc-400 max-w-xs">
-                Agrupa por enunciado normalizado. Considera duplicada quando hß <span className="text-zinc-200">= 2 IDs</span> com mesmo texto.
+                Agrupa por enunciado normalizado. Considera duplicada quando há <span className="text-zinc-200">≥ 2 IDs</span> com mesmo texto.
               </div>
             </div>
 
@@ -214,10 +292,10 @@ export default function AuditoriaDuplicadasQuestoes() {
               {analisando ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Analisando todo o banco de quest§es...
+                  Analisando todo o banco de questões...
                 </>
               ) : (
-                "Varrer Banco de Quest§es"
+                "Varrer Banco de Questões"
               )}
             </button>
           </div>
@@ -228,7 +306,7 @@ export default function AuditoriaDuplicadasQuestoes() {
             <div className="flex items-center gap-2 text-red-200">
               <Trash2 className="w-4 h-4" />
               <span className="text-sm font-semibold">
-                {selecionados.length} questÒo(§es) selecionada(s)
+                {selecionados.length} questão(ões) selecionada(s)
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -237,7 +315,7 @@ export default function AuditoriaDuplicadasQuestoes() {
                 disabled={excluindo}
                 className="text-xs font-bold bg-white/5 border border-white/10 text-zinc-200 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50"
               >
-                Limpar seleþÒo
+                Limpar seleção
               </button>
               <button
                 onClick={excluirSelecionadas}
@@ -269,7 +347,7 @@ export default function AuditoriaDuplicadasQuestoes() {
                   </span>
                 </div>
                 <div className="text-zinc-400">
-                  Quest§es analisadas: <span className="text-zinc-200">{relatorio.totalQuestoesAnalisadas}</span>
+                  Questões analisadas: <span className="text-zinc-200">{relatorio.totalQuestoesAnalisadas}</span>
                 </div>
               </div>
 
@@ -280,7 +358,7 @@ export default function AuditoriaDuplicadasQuestoes() {
                     type="text"
                     value={filtro}
                     onChange={(e) => setFiltro(e.target.value)}
-                    placeholder="Filtrar por texto, ID, banca, ¾rgÒo, cargo ou matÚria..."
+                    placeholder="Filtrar por texto, ID, banca, órgão, cargo ou matéria..."
                     className="bg-black/40 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500/60 w-80"
                   />
                 </div>
@@ -290,8 +368,8 @@ export default function AuditoriaDuplicadasQuestoes() {
             {relatorio.totalDuplicadasEncontradas === 0 ? (
               <div className="p-8 text-center bg-emerald-500/10 border border-emerald-500/40 text-emerald-300 rounded-2xl flex flex-col items-center gap-3 shadow-lg shadow-black/20">
                 <CheckCircle2 className="w-8 h-8" />
-                <p className="font-semibold text-lg">Nenhuma duplicidade encontrada no banco de quest§es.</p>
-                <p className="text-sm text-emerald-300/80">Todos os enunciados sÒo ·nicos ap¾s a normalizaþÒo.</p>
+                <p className="font-semibold text-lg">Nenhuma duplicidade encontrada no banco de questões.</p>
+                <p className="text-sm text-emerald-300/80">Todos os enunciados são únicos após a normalização.</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -304,7 +382,7 @@ export default function AuditoriaDuplicadasQuestoes() {
                       <div className="flex items-center gap-3">
                         <span className="bg-amber-500/10 border border-amber-500/40 text-amber-400 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5">
                           <AlertTriangle className="w-3.5 h-3.5" />
-                          Grupo com {item.quantidade} quest§es idÛnticas
+                          Grupo com {item.quantidade} questões idênticas
                         </span>
                         <button
                           onClick={() => toggleGrupo(item.ids)}
@@ -320,12 +398,12 @@ export default function AuditoriaDuplicadasQuestoes() {
                     </div>
 
                     <p className="text-zinc-100 font-medium leading-relaxed border-l-2 border-amber-500/60 pl-4">
-                      ô{item.textoReferencia}ö
+                      “{item.textoReferencia}”
                     </p>
 
                     <div className="space-y-3 bg-black/20 border border-white/10 p-4 rounded-xl overflow-x-auto">
                       <span className="block text-zinc-400 font-semibold text-xs uppercase tracking-wider mb-2">
-                        Quest§es no grupo
+                        Questões no grupo
                       </span>
                       <div className="min-w-[820px] space-y-2">
                         {item.questoes.map((q) => (
@@ -353,25 +431,25 @@ export default function AuditoriaDuplicadasQuestoes() {
                               <ExternalLink className="w-3.5 h-3.5" />
                             </Link>
                             <div className="truncate text-zinc-300" title={q.banca || ""}>
-                              {q.banca || <span className="text-zinc-500">ù</span>}
+                              {q.banca || <span className="text-zinc-500">—</span>}
                             </div>
                             <div className="truncate text-zinc-300" title={q.orgao || ""}>
-                              {q.orgao || <span className="text-zinc-500">ù</span>}
+                              {q.orgao || <span className="text-zinc-500">—</span>}
                             </div>
                             <div className="truncate text-zinc-300" title={q.cargo || ""}>
-                              {q.cargo || <span className="text-zinc-500">ù</span>}
+                              {q.cargo || <span className="text-zinc-500">—</span>}
                             </div>
                             <div className="truncate text-zinc-300" title={q.materia || ""}>
-                              {q.materia || <span className="text-zinc-500">ù</span>}
+                              {q.materia || <span className="text-zinc-500">—</span>}
                             </div>
                             <div className="text-center text-zinc-300">
-                              {q.ano ?? <span className="text-zinc-500">ù</span>}
+                              {q.ano ?? <span className="text-zinc-500">—</span>}
                             </div>
                             <button
                               onClick={() => excluirUnica(q.id)}
                               disabled={excluindo}
                               className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
-                              title="Excluir questÒo"
+                              title="Excluir questão"
                             >
                               {excluindoId === q.id && excluindo ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -393,10 +471,3 @@ export default function AuditoriaDuplicadasQuestoes() {
     </div>
   );
 }
-
-
-
-
-
-
-

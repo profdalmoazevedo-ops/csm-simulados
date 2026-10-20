@@ -301,6 +301,13 @@ export default function BancoDeQuestoesAdmin() {
               {gerandoLote ? progressoLote : "Gerar Comentários (IA)"}
             </button>
 
+            <Link
+              href="/admin/questoes/duplicadas"
+              className="bg-[#131c2f]/80 hover:bg-[#131c2f] border border-amber-500/30 text-amber-400 font-bold py-3 px-5 rounded-xl transition-all flex items-center gap-2 text-xs uppercase tracking-widest"
+            >
+              <CopyCheck className="w-4 h-4" /> Verificar Duplicadas
+            </Link>
+
             <Link 
               href="/admin/questoes/nova" 
               className="bg-emerald-600 hover:bg-emerald-500 text-black font-black py-3 px-6 rounded-xl transition-all flex items-center gap-2 text-xs uppercase tracking-widest"

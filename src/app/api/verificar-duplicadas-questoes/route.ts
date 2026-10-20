@@ -36,7 +36,7 @@ function extrairTextoReferencia(texto: string | null | undefined): string {
 }
 
 interface QuestaoRow {
-  id: number;
+  id: string;
   enunciado: string | null;
   banca: string | null;
   orgao: string | null;
@@ -48,7 +48,7 @@ interface QuestaoRow {
 interface GrupoDuplicado {
   chave: string;
   textoReferencia: string;
-  ids: Set<number>;
+  ids: Set<string>;
   questoes: QuestaoRow[];
 }
 
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
         gruposMap.set(chave, {
           chave,
           textoReferencia: extrairTextoReferencia(q.enunciado),
-          ids: new Set<number>(),
+          ids: new Set<string>(),
           questoes: [],
         });
       }
@@ -102,10 +102,10 @@ export async function POST(req: NextRequest) {
     const duplicadas = duplicadasAgrupadas.map((grupo) => ({
       textoReferencia: grupo.textoReferencia,
       quantidade: grupo.ids.size,
-      ids: Array.from(grupo.ids).sort((x, y) => x - y),
+      ids: Array.from(grupo.ids).sort(),
       questoes: grupo.questoes
         .slice()
-        .sort((x, y) => x.id - y.id)
+        .sort((x, y) => x.id.localeCompare(y.id))
         .map((q) => ({
           id: q.id,
           banca: q.banca,

@@ -37,9 +37,9 @@ function extrairTextoReferencia(texto: string | null | undefined): string {
 
 interface QuestaoVinculada {
   simulado_id: string;
-  questao_id: number;
+  questao_id: string;
   questoes: {
-    id: number;
+    id: string;
     enunciado: string | null;
     banca: string | null;
     ano: number | null;
@@ -51,9 +51,9 @@ interface GrupoDuplicado {
   textoReferencia: string;
   banca: string | null;
   ano: number | null;
-  ids: Set<number>;
+  ids: Set<string>;
   simulados: Set<string>;
-  questoes: Array<{ id: number; simulado_id: string }>;
+  questoes: Array<{ id: string; simulado_id: string }>;
 }
 
 export async function POST(req: NextRequest) {
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
           textoReferencia: extrairTextoReferencia(questao.enunciado),
           banca: questao.banca,
           ano: questao.ano,
-          ids: new Set<number>(),
+          ids: new Set<string>(),
           simulados: new Set<string>(),
           questoes: [],
         });
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
       textoReferencia: grupo.textoReferencia,
       banca: grupo.banca,
       ano: grupo.ano,
-      ids: Array.from(grupo.ids).sort((x, y) => x - y),
+      ids: Array.from(grupo.ids).sort(),
       simulados: Array.from(grupo.simulados).sort(),
     }));
     return NextResponse.json({ totalDuplicadasEncontradas: duplicadas.length, duplicadas });
