@@ -7,15 +7,21 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> } | { params: { id: string } }
 ) {
   try {
-    const { id: idStr } = await params;
+    let idStr: string;
+    if (context.params instanceof Promise) {
+      const p = await context.params;
+      idStr = p.id;
+    } else {
+      idStr = (context.params as any).id;
+    }
     const id = Number(idStr);
 
-    if (!Number.isFinite(id)) {
+    if (!Number.isFinite(id) || isNaN(id)) {
       return NextResponse.json(
-        { error: "ID da questão inválido.", details: null, hint: null },
+        { error: "ID da questão inválido.", details: idStr, hint: null },
         { status: 400 }
       );
     }
