@@ -1,4 +1,5 @@
-﻿"use client";
+﻿import { supabase } from '@/lib/supabase';
+"use client";
 
 import { useState } from "react";
 import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Search, Trash2, X } from "lucide-react";
@@ -97,8 +98,29 @@ export default function AuditoriaDuplicadasQuestoes() {
   };
 
   const limparSelecao = () => setSelecionados([]);
+  async function excluirQuestao(id: number | string) {
+    if (!confirm("Tem certeza absoluta que deseja remover esta questao permanentemente do acervo?")) return;
+    try {
+      const { error } = await supabase.from('questoes').delete().eq('id', id);
+      if (error) throw error;
+      setRelatorio((prev: any) => {
+        if (!prev) return prev;
+        const novosGrupos = prev.duplicadas
+          .map((grupo: any) => ({
+            ...grupo,
+            questoes: grupo.questoes.filter((q: any) => String(q.id) !== String(id)),
+            ids: grupo.ids.filter((gid: any) => String(gid) !== String(id)),
+            quantidade: grupo.questoes.filter((q: any) => String(q.id) !== String(id)).length,
+          }))
+          .filter((grupo: any) => grupo.quantidade >= 2);
+        return { ...prev, duplicadas: novosGrupos, totalDuplicadasEncontradas: novosGrupos.length };
+      });
+    } catch (error: any) {
+      alert("Nao foi possivel excluir a questao: " + error.message);
+    }
+  }
 
-  const excluirUnica = async (id: number) => {
+const excluirUnica = async (id: number) => {
     const confirmar = confirm(
       `Excluir permanentemente a questão #${id}?\n\nEsta ação NÃO PODE ser desfeita.`
     );
