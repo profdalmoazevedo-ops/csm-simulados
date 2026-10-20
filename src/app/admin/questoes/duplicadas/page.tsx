@@ -98,28 +98,49 @@ export default function AuditoriaDuplicadasQuestoes() {
   };
 
   const limparSelecao = () => setSelecionados([]);
-  async function excluirQuestao(id: number | string) {
-    if (!confirm("Tem certeza absoluta que deseja remover esta questao permanentemente do acervo?")) return;
+
+
+
+  const excluirSelecionadas = async () => {
+    if (selecionados.length === 0) return;
+    const confirmar = confirm(`Excluir permanentemente ${selecionados.length} questao(oes) selecionada(s)?\n\nEsta acao NAO PODE ser desfeita.`);
+    if (!confirmar) return;
+
+    setExcluindo(true);
     try {
-      const { error } = await supabase.from('questoes').delete().eq('id', id);
-      if (error) throw error;
+      for (const id of selecionados) {
+        const { error } = await supabase.from('questoes').delete().eq('id', id);
+        if (error) {
+          alert('Nao foi possivel excluir a questao: ' + error.message);
+          setExcluindo(false);
+          return;
+        }
+      }
       setRelatorio((prev: any) => {
         if (!prev) return prev;
+        const idsSet = new Set(selecionados.map(String));
         const novosGrupos = prev.duplicadas
           .map((grupo: any) => ({
             ...grupo,
-            questoes: grupo.questoes.filter((q: any) => String(q.id) !== String(id)),
-            ids: grupo.ids.filter((gid: any) => String(gid) !== String(id)),
-            quantidade: grupo.questoes.filter((q: any) => String(q.id) !== String(id)).length,
+            questoes: grupo.questoes.filter((q: any) => !idsSet.has(String(q.id))),
+            ids: grupo.ids.filter((gid: any) => !idsSet.has(String(gid))),
+            quantidade: grupo.questoes.filter((q: any) => !idsSet.has(String(q.id))).length,
           }))
           .filter((grupo: any) => grupo.quantidade >= 2);
-        return { ...prev, duplicadas: novosGrupos, totalDuplicadasEncontradas: novosGrupos.length };
+        return {
+          ...prev,
+          duplicadas: novosGrupos,
+          totalDuplicadasEncontradas: novosGrupos.length,
+        };
       });
-    } catch (error: any) {
-      alert("Nao foi possivel excluir a questao: " + error.message);
+      setSelecionados([]);
+      alert('Questoes excluidas com sucesso.');
+    } catch (err: any) {
+      alert('Erro ao excluir em lote: ' + err.message);
+    } finally {
+      setExcluindo(false);
     }
-  }
-
+  };
   const excluirUnica = async (id: number) => {
     await excluirQuestao(id);
   };
@@ -145,115 +166,7 @@ export default function AuditoriaDuplicadasQuestoes() {
     }
   }
 
-const excluirUnica = async (id: number) => {
-    const confirmar = confirm(
-      `Excluir permanentemente a questÒo #${id}?\n\nEsta aþÒo N├O PODE ser desfeita.`
-    );
-    if (!confirmar) return;
 
-    setExcluindo(true);
-    setExcluindoId(id);
-    try {
-      const response = await fetch(`/api/questoes/${id}`, { method: "DELETE" });
-      const data = await response.json();
-
-      if (!response.ok) {
-        const mensagem = [data.error, data.details && data.details !== data.error ? `\n\n${data.details}` : null, data.hint ? `\n\nDica: ${data.hint}` : null]
-          .filter(Boolean)
-          .join("");
-        alert(mensagem || "NÒo foi possÝvel excluir a questÒo.");
-        return;
-      }
-
-      // Remove dos grupos
-      setRelatorio((prev) => {
-        if (!prev) return prev;
-        const novosGrupos = prev.duplicadas
-          .map((grupo) => ({
-            ...grupo,
-            questoes: grupo.questoes.filter((q) => q.id !== id),
-            ids: grupo.ids.filter((gid) => gid !== id),
-            quantidade: grupo.questoes.filter((q) => q.id !== id).length,
-          }))
-          .filter((grupo) => grupo.quantidade >= 2);
-        return {
-          ...prev,
-          duplicadas: novosGrupos,
-          totalDuplicadasEncontradas: novosGrupos.length,
-        };
-      });
-      setSelecionados((prev) => prev.filter((s) => s !== id));
-    } catch (err: any) {
-      alert("Erro ao excluir questÒo: " + err.message);
-    } finally {
-      setExcluindo(false);
-      setExcluindoId(null);
-    }
-  };
-
-  const excluirSelecionadas = async () => {
-    if (selecionados.length === 0) return;
-    const confirmar = confirm(
-      `Excluir permanentemente ${selecionados.length} questÒo(§es) selecionada(s)?\n\nEsta aþÒo N├O PODE ser desfeita.`
-    );
-    if (!confirmar) return;
-
-    setExcluindo(true);
-    try {
-      const response = await fetch("/api/questoes/excluir-lote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: selecionados }),
-      });
-      const data = await response.json();
-
-      if (response.status === 500 && data.error) {
-        alert(data.error + (data.details ? `\n\n${data.details}` : ""));
-        return;
-      }
-
-      const sucessoIds = new Set((data.sucesso || []).map((s: any) => s.id));
-      const falhas = data.falhas || [];
-
-      // Remove apenas as com sucesso
-      setRelatorio((prev) => {
-        if (!prev) return prev;
-        const novosGrupos = prev.duplicadas
-          .map((grupo) => ({
-            ...grupo,
-            questoes: grupo.questoes.filter((q) => !sucessoIds.has(q.id)),
-            ids: grupo.ids.filter((gid) => !sucessoIds.has(gid)),
-            quantidade: grupo.questoes.filter((q) => !sucessoIds.has(q.id)).length,
-          }))
-          .filter((grupo) => grupo.quantidade >= 2);
-        return {
-          ...prev,
-          duplicadas: novosGrupos,
-          totalDuplicadasEncontradas: novosGrupos.length,
-        };
-      });
-
-      // Limpa seleþÒo das excluÝdas com sucesso
-      setSelecionados((prev) => prev.filter((s) => !sucessoIds.has(s)));
-
-      // Mostra relat¾rio detalhado
-      let mensagem = `ExclusÒo em lote finalizada.\n\nSucesso: ${sucessoIds.size}\nFalhas: ${falhas.length}`;
-      if (falhas.length > 0) {
-        mensagem += "\n\nDetalhes das falhas:";
-        for (const f of falhas.slice(0, 10)) {
-          mensagem += `\n\n#${f.id}:\n${f.motivo}`;
-        }
-        if (falhas.length > 10) {
-          mensagem += `\n\n... e mais ${falhas.length - 10} falha(s).`;
-        }
-      }
-      alert(mensagem);
-    } catch (err: any) {
-      alert("Erro ao excluir em lote: " + err.message);
-    } finally {
-      setExcluindo(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-[#09090b] text-[#e4e4e7] font-sans pb-20">
@@ -480,6 +393,9 @@ const excluirUnica = async (id: number) => {
     </div>
   );
 }
+
+
+
 
 
 
