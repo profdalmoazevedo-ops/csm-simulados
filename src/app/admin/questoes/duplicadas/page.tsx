@@ -1,6 +1,5 @@
-Ôªø"use client"
+"use client"
 import { supabase } from '@/lib/supabase';
-"use client";
 
 import { useState } from "react";
 import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Search, Trash2, X } from "lucide-react";
@@ -56,7 +55,7 @@ export default function AuditoriaDuplicadasQuestoes() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Erro ao varrer o banco de quest√µes.");
+        throw new Error(data.error || "Erro ao varrer o banco de questıes.");
       }
 
       setRelatorio(data as RelatorioDuplicadasQuestoes);
@@ -123,7 +122,7 @@ export default function AuditoriaDuplicadasQuestoes() {
 
 const excluirUnica = async (id: number) => {
     const confirmar = confirm(
-      `Excluir permanentemente a quest√£o #${id}?\n\nEsta a√ß√£o N√ÉO PODE ser desfeita.`
+      `Excluir permanentemente a quest„o #${id}?\n\nEsta aÁ„o N√O PODE ser desfeita.`
     );
     if (!confirmar) return;
 
@@ -137,7 +136,7 @@ const excluirUnica = async (id: number) => {
         const mensagem = [data.error, data.details && data.details !== data.error ? `\n\n${data.details}` : null, data.hint ? `\n\nDica: ${data.hint}` : null]
           .filter(Boolean)
           .join("");
-        alert(mensagem || "N√£o foi poss√≠vel excluir a quest√£o.");
+        alert(mensagem || "N„o foi possÌvel excluir a quest„o.");
         return;
       }
 
@@ -160,7 +159,7 @@ const excluirUnica = async (id: number) => {
       });
       setSelecionados((prev) => prev.filter((s) => s !== id));
     } catch (err: any) {
-      alert("Erro ao excluir quest√£o: " + err.message);
+      alert("Erro ao excluir quest„o: " + err.message);
     } finally {
       setExcluindo(false);
       setExcluindoId(null);
@@ -170,7 +169,7 @@ const excluirUnica = async (id: number) => {
   const excluirSelecionadas = async () => {
     if (selecionados.length === 0) return;
     const confirmar = confirm(
-      `Excluir permanentemente ${selecionados.length} quest√£o(√µes) selecionada(s)?\n\nEsta a√ß√£o N√ÉO PODE ser desfeita.`
+      `Excluir permanentemente ${selecionados.length} quest„o(ıes) selecionada(s)?\n\nEsta aÁ„o N√O PODE ser desfeita.`
     );
     if (!confirmar) return;
 
@@ -209,11 +208,11 @@ const excluirUnica = async (id: number) => {
         };
       });
 
-      // Limpa sele√ß√£o das exclu√≠das com sucesso
+      // Limpa seleÁ„o das excluÌdas com sucesso
       setSelecionados((prev) => prev.filter((s) => !sucessoIds.has(s)));
 
-      // Mostra relat√≥rio detalhado
-      let mensagem = `Exclus√£o em lote finalizada.\n\nSucesso: ${sucessoIds.size}\nFalhas: ${falhas.length}`;
+      // Mostra relatÛrio detalhado
+      let mensagem = `Exclus„o em lote finalizada.\n\nSucesso: ${sucessoIds.size}\nFalhas: ${falhas.length}`;
       if (falhas.length > 0) {
         mensagem += "\n\nDetalhes das falhas:";
         for (const f of falhas.slice(0, 10)) {
@@ -236,12 +235,12 @@ const excluirUnica = async (id: number) => {
       <div className="max-w-6xl mx-auto px-6 pt-12 space-y-8">
         <div className="space-y-3">
           <h1 className="text-3xl font-serif text-white italic uppercase">
-            Auditoria de Duplicadas ‚Äî Banco de Quest√µes
+            Auditoria de Duplicadas ó Banco de Questıes
           </h1>
           <p className="text-zinc-400 max-w-3xl">
             Analisa todo o acervo da tabela <span className="text-zinc-200 font-medium">questoes</span> e aponta grupos com
-            enunciados id√™nticos (ap√≥s normaliza√ß√£o de tags HTML, espa√ßos e mai√∫sculas/min√∫sculas). Ideal para limpar
-            repeti√ß√µes no banco geral.
+            enunciados idÍnticos (apÛs normalizaÁ„o de tags HTML, espaÁos e mai˙sculas/min˙sculas). Ideal para limpar
+            repetiÁıes no banco geral.
           </p>
         </div>
 
@@ -265,7 +264,7 @@ const excluirUnica = async (id: number) => {
                 </select>
               </div>
               <div className="text-xs text-zinc-400 max-w-xs">
-                Agrupa por enunciado normalizado. Considera duplicada quando h√° <span className="text-zinc-200">‚â• 2 IDs</span> com mesmo texto.
+                Agrupa por enunciado normalizado. Considera duplicada quando h· <span className="text-zinc-200">= 2 IDs</span> com mesmo texto.
               </div>
             </div>
 
@@ -277,10 +276,10 @@ const excluirUnica = async (id: number) => {
               {analisando ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Analisando todo o banco de quest√µes...
+                  Analisando todo o banco de questıes...
                 </>
               ) : (
-                "Varrer Banco de Quest√µes"
+                "Varrer Banco de Questıes"
               )}
             </button>
           </div>
@@ -291,7 +290,7 @@ const excluirUnica = async (id: number) => {
             <div className="flex items-center gap-2 text-red-200">
               <Trash2 className="w-4 h-4" />
               <span className="text-sm font-semibold">
-                {selecionados.length} quest√£o(√µes) selecionada(s)
+                {selecionados.length} quest„o(ıes) selecionada(s)
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -300,7 +299,7 @@ const excluirUnica = async (id: number) => {
                 disabled={excluindo}
                 className="text-xs font-bold bg-white/5 border border-white/10 text-zinc-200 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50"
               >
-                Limpar sele√ß√£o
+                Limpar seleÁ„o
               </button>
               <button
                 onClick={excluirSelecionadas}
@@ -332,7 +331,7 @@ const excluirUnica = async (id: number) => {
                   </span>
                 </div>
                 <div className="text-zinc-400">
-                  Quest√µes analisadas: <span className="text-zinc-200">{relatorio.totalQuestoesAnalisadas}</span>
+                  Questıes analisadas: <span className="text-zinc-200">{relatorio.totalQuestoesAnalisadas}</span>
                 </div>
               </div>
 
@@ -343,7 +342,7 @@ const excluirUnica = async (id: number) => {
                     type="text"
                     value={filtro}
                     onChange={(e) => setFiltro(e.target.value)}
-                    placeholder="Filtrar por texto, ID, banca, √≥rg√£o, cargo ou mat√©ria..."
+                    placeholder="Filtrar por texto, ID, banca, Ûrg„o, cargo ou matÈria..."
                     className="bg-black/40 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500/60 w-80"
                   />
                 </div>
@@ -353,8 +352,8 @@ const excluirUnica = async (id: number) => {
             {relatorio.totalDuplicadasEncontradas === 0 ? (
               <div className="p-8 text-center bg-emerald-500/10 border border-emerald-500/40 text-emerald-300 rounded-2xl flex flex-col items-center gap-3 shadow-lg shadow-black/20">
                 <CheckCircle2 className="w-8 h-8" />
-                <p className="font-semibold text-lg">Nenhuma duplicidade encontrada no banco de quest√µes.</p>
-                <p className="text-sm text-emerald-300/80">Todos os enunciados s√£o √∫nicos ap√≥s a normaliza√ß√£o.</p>
+                <p className="font-semibold text-lg">Nenhuma duplicidade encontrada no banco de questıes.</p>
+                <p className="text-sm text-emerald-300/80">Todos os enunciados s„o ˙nicos apÛs a normalizaÁ„o.</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -367,7 +366,7 @@ const excluirUnica = async (id: number) => {
                       <div className="flex items-center gap-3">
                         <span className="bg-amber-500/10 border border-amber-500/40 text-amber-400 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5">
                           <AlertTriangle className="w-3.5 h-3.5" />
-                          Grupo com {item.quantidade} quest√µes id√™nticas
+                          Grupo com {item.quantidade} questıes idÍnticas
                         </span>
                         <button
                           onClick={() => toggleGrupo(item.ids)}
@@ -383,12 +382,12 @@ const excluirUnica = async (id: number) => {
                     </div>
 
                     <p className="text-zinc-100 font-medium leading-relaxed border-l-2 border-amber-500/60 pl-4">
-                      ‚Äú{item.textoReferencia}‚Äù
+                      ì{item.textoReferencia}î
                     </p>
 
                     <div className="space-y-3 bg-black/20 border border-white/10 p-4 rounded-xl overflow-x-auto">
                       <span className="block text-zinc-400 font-semibold text-xs uppercase tracking-wider mb-2">
-                        Quest√µes no grupo
+                        Questıes no grupo
                       </span>
                       <div className="min-w-[820px] space-y-2">
                         {item.questoes.map((q) => (
@@ -416,25 +415,25 @@ const excluirUnica = async (id: number) => {
                               <ExternalLink className="w-3.5 h-3.5" />
                             </Link>
                             <div className="truncate text-zinc-300" title={q.banca || ""}>
-                              {q.banca || <span className="text-zinc-500">‚Äî</span>}
+                              {q.banca || <span className="text-zinc-500">ó</span>}
                             </div>
                             <div className="truncate text-zinc-300" title={q.orgao || ""}>
-                              {q.orgao || <span className="text-zinc-500">‚Äî</span>}
+                              {q.orgao || <span className="text-zinc-500">ó</span>}
                             </div>
                             <div className="truncate text-zinc-300" title={q.cargo || ""}>
-                              {q.cargo || <span className="text-zinc-500">‚Äî</span>}
+                              {q.cargo || <span className="text-zinc-500">ó</span>}
                             </div>
                             <div className="truncate text-zinc-300" title={q.materia || ""}>
-                              {q.materia || <span className="text-zinc-500">‚Äî</span>}
+                              {q.materia || <span className="text-zinc-500">ó</span>}
                             </div>
                             <div className="text-center text-zinc-300">
-                              {q.ano ?? <span className="text-zinc-500">‚Äî</span>}
+                              {q.ano ?? <span className="text-zinc-500">ó</span>}
                             </div>
                             <button
                               onClick={() => excluirUnica(q.id)}
                               disabled={excluindo}
                               className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
-                              title="Excluir quest√£o"
+                              title="Excluir quest„o"
                             >
                               {excluindoId === q.id && excluindo ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
