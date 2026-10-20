@@ -7,10 +7,10 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const idStr = params.id;
+    const { id: idStr } = await params;
     const id = Number(idStr);
 
     if (!Number.isFinite(id)) {
