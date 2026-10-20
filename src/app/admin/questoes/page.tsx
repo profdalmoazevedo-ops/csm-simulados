@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { ehCampoFaltante } from '@/lib/metadados';
-import { Plus, Search, Edit, Trash2, Database, BookOpen, AlertCircle, Filter, Wand2, RefreshCcw, ChevronDown, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Database, BookOpen, AlertCircle, Filter, Wand2, RefreshCcw, ChevronDown, ChevronsDownUp, ChevronsUpDown, CopyCheck } from 'lucide-react';
 import Link from 'next/link';
+
 
 type Questao = {
   id: string;
@@ -27,7 +28,7 @@ type GrupoMateria = {
   topicos: GrupoTopico[];
 };
 
-// Chave de agrupamento: ignora caixa e espaços extras (trim + espaços colapsados).
+// Chave de agrupamento: ignora caixa e espaÃ§os extras (trim + espaÃ§os colapsados).
 const normalizarChave = (valor: string | null | undefined) =>
   (valor || '').trim().replace(/\s+/g, ' ').toLowerCase();
 
@@ -41,8 +42,8 @@ function agruparPorMateriaTopico(lista: Questao[]): GrupoMateria[] {
   }>();
 
   for (const q of lista) {
-    const materia = (q.materia || '').trim() || 'Sem Matéria';
-    const topico = (q.topico || '').trim() || 'Sem Tópico';
+    const materia = (q.materia || '').trim() || 'Sem MatÃ©ria';
+    const topico = (q.topico || '').trim() || 'Sem TÃ³pico';
 
     const chaveMateria = normalizarChave(materia);
     const chaveTopico = normalizarChave(topico);
@@ -94,45 +95,45 @@ export default function BancoDeQuestoesAdmin() {
       const { data, error } = await supabase
         .from('questoes')
         .select('*')
-        .order('criado_em', { ascending: false }); // 🚀 Correção: ordenando pela data real de criação
+        .order('criado_em', { ascending: false }); // ðŸš€ CorreÃ§Ã£o: ordenando pela data real de criaÃ§Ã£o
 
       if (error) throw error;
       setQuestoes(data || []);
       setQtdFaltantes((data || []).filter(q => ehCampoFaltante(q.orgao) || ehCampoFaltante(q.cargo)).length);
     } catch (error: any) {
-      console.error("Erro interno ao carregar questões:", error);
+      console.error("Erro interno ao carregar questÃµes:", error);
     } finally {
       setLoading(false);
     }
   }
 
   async function gerarComentariosEmLote() {
-    // Pendente = sem comentário OU comentário que vira vazio após trim (ex.: só
+    // Pendente = sem comentÃ¡rio OU comentÃ¡rio que vira vazio apÃ³s trim (ex.: sÃ³
     // quebras de linha), que passaria batido pelo filtro antigo.
     const pendentes = questoes.filter(q =>
       !q.comentario_gabarito ||
       q.comentario_gabarito.trim() === "" ||
-      q.comentario_gabarito === "Gerando comentário..."
+      q.comentario_gabarito === "Gerando comentÃ¡rio..."
     );
     
     if (pendentes.length === 0) {
-      alert("Todas as questões já possuem comentários gerados!");
+      alert("Todas as questÃµes jÃ¡ possuem comentÃ¡rios gerados!");
       return;
     }
 
-    if (!confirm(`Deseja iniciar a geração de comentários para ${pendentes.length} questões pendentes?`)) return;
+    if (!confirm(`Deseja iniciar a geraÃ§Ã£o de comentÃ¡rios para ${pendentes.length} questÃµes pendentes?`)) return;
 
     setGerandoLote(true);
 
-    // Pool paralelo: várias questões ao mesmo tempo em vez de uma por vez,
-    // sem as antigas pausas fixas de 5 s entre cada questão.
+    // Pool paralelo: vÃ¡rias questÃµes ao mesmo tempo em vez de uma por vez,
+    // sem as antigas pausas fixas de 5 s entre cada questÃ£o.
     const CONCORRENCIA = 4;
     const MAX_TENTATIVAS = 3;
 
     const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
     // Em erro de cota (429), sobrecarga (503) ou infra (5xx), espera e tenta de
-    // novo com backoff progressivo. Qualquer outro erro é devolvido direto.
+    // novo com backoff progressivo. Qualquer outro erro Ã© devolvido direto.
     const chamarComRetry = async (payload: Record<string, unknown>) => {
       let ultimaResposta: Response | null = null;
       for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
@@ -174,12 +175,12 @@ export default function BancoDeQuestoesAdmin() {
           if (updateError) throw updateError;
           ok++;
         } else {
-          throw new Error(data.error || "Sem comentário gerado.");
+          throw new Error(data.error || "Sem comentÃ¡rio gerado.");
         }
       } catch (err) {
         const mensagem = err instanceof Error ? err.message : String(err);
         falhas.push({ id: q.id, motivo: mensagem });
-        console.error(`Falha na questão ${q.id}:`, err);
+        console.error(`Falha na questÃ£o ${q.id}:`, err);
       }
     };
 
@@ -189,9 +190,9 @@ export default function BancoDeQuestoesAdmin() {
         if (indice >= pendentes.length) return;
 
         const feito = Math.min(cursor, pendentes.length);
-        setProgressoLote(`Processando (${feito}/${pendentes.length}) — ${ok} ok${falhas.length ? ` · ${falhas.length} com erro` : ""}`);
+        setProgressoLote(`Processando (${feito}/${pendentes.length}) â€” ${ok} ok${falhas.length ? ` Â· ${falhas.length} com erro` : ""}`);
 
-        // Pequeno espaçamento aleatório para não estourar o limite de requisições por minuto.
+        // Pequeno espaÃ§amento aleatÃ³rio para nÃ£o estourar o limite de requisiÃ§Ãµes por minuto.
         await sleep(Math.floor(Math.random() * 500));
 
         await processarQuestao(pendentes[indice]);
@@ -204,9 +205,16 @@ export default function BancoDeQuestoesAdmin() {
       );
 
       if (falhas.length > 0) {
-        alert(`Processo finalizado com ${ok} comentário(s) gerado(s) e ${falhas.length} falha(s).\n\nAs questões com falha continuam sem comentário — clique em "Gerar Comentários (IA)" novamente para tentar de novo, e o botão processa apenas as pendentes.`);
+            <Link
+              href="/admin/questoes/duplicadas"
+              className="bg-[#131c2f]/80 hover:bg-[#131c2f] border border-amber-500/30 text-amber-400 font-bold py-3 px-5 rounded-xl transition-all flex items-center gap-2 text-xs uppercase tracking-widest"
+            >
+              <CopyCheck className="w-4 h-4" /> Verificar Duplicadas
+            </Link>
+
+        alert(`Processo finalizado com ${ok} comentÃ¡rio(s) gerado(s) e ${falhas.length} falha(s).\n\nAs questÃµes com falha continuam sem comentÃ¡rio â€” clique em "Gerar ComentÃ¡rios (IA)" novamente para tentar de novo, e o botÃ£o processa apenas as pendentes.`);
       } else {
-        alert(`🎉 Processo finalizado! ${ok} comentário(s) gerado(s) com sucesso.`);
+        alert(`ðŸŽ‰ Processo finalizado! ${ok} comentÃ¡rio(s) gerado(s) com sucesso.`);
       }
       carregarQuestoes(); 
     } catch (err: any) {
@@ -218,14 +226,14 @@ export default function BancoDeQuestoesAdmin() {
   }
 
   async function excluirQuestao(id: string) {
-    if (!confirm("Tem certeza absoluta que deseja remover esta questão permanentemente do acervo?")) return;
+    if (!confirm("Tem certeza absoluta que deseja remover esta questÃ£o permanentemente do acervo?")) return;
 
     try {
       const { error } = await supabase.from('questoes').delete().eq('id', id);
       if (error) throw error;
       setQuestoes(prev => prev.filter(q => q.id !== id));
     } catch (error: any) {
-      alert("Não foi possível excluir a questão: " + error.message);
+      alert("NÃ£o foi possÃ­vel excluir a questÃ£o: " + error.message);
     }
   }
 
@@ -280,14 +288,14 @@ export default function BancoDeQuestoesAdmin() {
     <div className="min-h-screen bg-[#09090b] text-[#e4e4e7] font-sans pb-20">
       <div className="max-w-7xl mx-auto px-6 pt-12 space-y-6 animate-in fade-in duration-500">
         
-        {/* Cabeçalho */}
+        {/* CabeÃ§alho */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-5">
           <div>
             <h1 className="text-3xl font-serif italic text-white flex items-center gap-2 uppercase">
-              <Database className="w-8 h-8 text-emerald-500" /> Gestão do Acervo
+              <Database className="w-8 h-8 text-emerald-500" /> GestÃ£o do Acervo
             </h1>
             <p className="text-zinc-400 mt-2 text-sm">
-              Gerencie questões, simulados e lotes de IA. Total de {questoes.length} questões carregadas.
+              Gerencie questÃµes, simulados e lotes de IA. Total de {questoes.length} questÃµes carregadas.
             </p>
           </div>
           
@@ -298,29 +306,29 @@ export default function BancoDeQuestoesAdmin() {
               className="bg-[#131c2f]/80 hover:bg-[#131c2f] border border-blue-500/30 text-blue-400 disabled:opacity-50 font-bold py-3 px-5 rounded-xl transition-all flex items-center gap-2 text-xs uppercase tracking-widest"
             >
               {gerandoLote ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-              {gerandoLote ? progressoLote : "Gerar Comentários (IA)"}
+              {gerandoLote ? progressoLote : "Gerar ComentÃ¡rios (IA)"}
             </button>
 
             <Link 
               href="/admin/questoes/nova" 
               className="bg-emerald-600 hover:bg-emerald-500 text-black font-black py-3 px-6 rounded-xl transition-all flex items-center gap-2 text-xs uppercase tracking-widest"
             >
-              <Plus className="w-4 h-4" /> Nova Questão
+              <Plus className="w-4 h-4" /> Nova QuestÃ£o
             </Link>
           </div>
         </div>
 
-        {/* Banner: questões sem Cargo/Órgão */}
+        {/* Banner: questÃµes sem Cargo/Ã“rgÃ£o */}
         {qtdFaltantes > 0 && (
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-amber-500/10 border border-amber-500/25 rounded-2xl p-5">
             <div className="flex items-start gap-3">
               <AlertCircle className="w-6 h-6 text-amber-500 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-bold text-amber-400 uppercase tracking-widest">
-                  {qtdFaltantes} questões sem Cargo e/ou Órgão definido
+                  {qtdFaltantes} questÃµes sem Cargo e/ou Ã“rgÃ£o definido
                 </p>
                 <p className="text-xs text-zinc-400 mt-1">
-                  Preencha em lote com sugestão da IA ou manualmente, agrupado por banca, matéria e ano.
+                  Preencha em lote com sugestÃ£o da IA ou manualmente, agrupado por banca, matÃ©ria e ano.
                 </p>
               </div>
             </div>
@@ -333,7 +341,7 @@ export default function BancoDeQuestoesAdmin() {
           </div>
         )}
 
-        {/* ÁREA DE FILTROS */}
+        {/* ÃREA DE FILTROS */}
         <div className="flex flex-col md:flex-row gap-4">
           <div className="bg-[#131c2f]/30 rounded-xl border border-white/5 flex items-center gap-3 flex-1 px-4 py-2">
             <Search className="w-5 h-5 text-zinc-500" />
@@ -353,7 +361,7 @@ export default function BancoDeQuestoesAdmin() {
               onChange={(e) => setFiltroTopico(e.target.value)}
               className="w-full bg-transparent border-none text-zinc-200 focus:ring-0 outline-none font-medium cursor-pointer text-sm py-2 appearance-none"
             >
-              <option value="Todos" className="bg-[#09090b]">Todos os Tópicos</option>
+              <option value="Todos" className="bg-[#09090b]">Todos os TÃ³picos</option>
               {topicosUnicos.map(topico => (
                 <option key={topico as string} value={topico as string} className="bg-[#09090b]">{topico as string}</option>
               ))}
@@ -361,7 +369,7 @@ export default function BancoDeQuestoesAdmin() {
           </div>
         </div>
 
-        {/* Lista de Questões agrupada por Matéria → Tópico */}
+        {/* Lista de QuestÃµes agrupada por MatÃ©ria â†’ TÃ³pico */}
         {loading ? (
           <div className="bg-[#131c2f]/30 rounded-2xl border border-white/5 p-12 text-center text-zinc-500 font-medium animate-pulse">
             Carregando acervo...
@@ -369,7 +377,7 @@ export default function BancoDeQuestoesAdmin() {
         ) : questoesFiltradas.length === 0 ? (
           <div className="bg-[#131c2f]/30 rounded-2xl border border-white/5 p-12 flex flex-col items-center justify-center text-zinc-500 text-center">
             <AlertCircle className="w-12 h-12 mb-3 text-zinc-600" />
-            <p className="font-medium text-sm">Nenhuma questão passou nos filtros aplicados.</p>
+            <p className="font-medium text-sm">Nenhuma questÃ£o passou nos filtros aplicados.</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -377,21 +385,21 @@ export default function BancoDeQuestoesAdmin() {
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="text-xs text-zinc-500 font-medium">
-                  {materias.length} {materias.length === 1 ? 'matéria' : 'matérias'} · {questoesFiltradas.length} {questoesFiltradas.length === 1 ? 'questão' : 'questões'}
+                  {materias.length} {materias.length === 1 ? 'matÃ©ria' : 'matÃ©rias'} Â· {questoesFiltradas.length} {questoesFiltradas.length === 1 ? 'questÃ£o' : 'questÃµes'}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={expandirTodas}
                   className="p-2 text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
-                  title="Expandir todas as matérias"
+                  title="Expandir todas as matÃ©rias"
                 >
                   <ChevronsDownUp className="w-4 h-4" />
                 </button>
                 <button
                   onClick={recolherTodas}
                   className="p-2 text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
-                  title="Recolher todas as matérias"
+                  title="Recolher todas as matÃ©rias"
                 >
                   <ChevronsUpDown className="w-4 h-4" />
                 </button>
@@ -403,7 +411,7 @@ export default function BancoDeQuestoesAdmin() {
 
               return (
                 <div key={materia.materia} className="bg-[#131c2f]/30 border border-white/5 rounded-2xl overflow-hidden">
-                  {/* Cabeçalho da matéria */}
+                  {/* CabeÃ§alho da matÃ©ria */}
                   <button
                     type="button"
                     onClick={() => alternarMateria(materia.materia)}
@@ -414,16 +422,16 @@ export default function BancoDeQuestoesAdmin() {
                       <div className="min-w-0">
                         <p className="font-bold text-white text-sm truncate">{materia.materia}</p>
                         <p className="text-xs text-zinc-500 mt-0.5">
-                          {materia.topicos.length === 1 ? `${materia.topicos.length} tópico` : `${materia.topicos.length} tópicos`}
+                          {materia.topicos.length === 1 ? `${materia.topicos.length} tÃ³pico` : `${materia.topicos.length} tÃ³picos`}
                         </p>
                       </div>
                     </div>
                     <span className="shrink-0 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md">
-                      {materia.total} {materia.total === 1 ? 'questão' : 'questões'}
+                      {materia.total} {materia.total === 1 ? 'questÃ£o' : 'questÃµes'}
                     </span>
                   </button>
 
-                  {/* Seções por tópico */}
+                  {/* SeÃ§Ãµes por tÃ³pico */}
                   {aberta && (
                     <div className="border-t border-white/5">
                       {materia.topicos.map(topico => {
@@ -459,14 +467,14 @@ export default function BancoDeQuestoesAdmin() {
                                   <Link 
                                     href={`/admin/questoes/editar/${questao.id}`}
                                     className="p-2 text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors inline-block" 
-                                    title="Editar Questão"
+                                    title="Editar QuestÃ£o"
                                   >
                                     <Edit className="w-4 h-4" />
                                   </Link>
                                   <button 
                                     onClick={() => excluirQuestao(questao.id)}
                                     className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors" 
-                                    title="Excluir Questão"
+                                    title="Excluir QuestÃ£o"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
