@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -49,6 +49,13 @@ export async function DELETE(
         { status: 400 }
       );
     }
+
+    try {
+      await supabase.from("simulado_questoes").delete().eq("questao_id", id);
+    } catch (e) {}
+    try {
+      await supabase.from("respostas_alunos").delete().eq("questao_id", id);
+    } catch (e) {}
 
     const { error } = await supabase.from("questoes").delete().eq("id", id);
 
