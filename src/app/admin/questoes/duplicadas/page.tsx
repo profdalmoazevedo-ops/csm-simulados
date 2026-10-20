@@ -1,9 +1,9 @@
+ï»¿import { supabase } from '@/lib/supabase';
 "use client"
-import { supabase } from '@/lib/supabase';
 
 import { useState } from "react";
 import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Search, Trash2, X } from "lucide-react";
-import Link from "next/link";
+import Link from 'next/link';
 
 interface QuestaoResumo {
   id: number;
@@ -55,7 +55,7 @@ export default function AuditoriaDuplicadasQuestoes() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Erro ao varrer o banco de questões.");
+        throw new Error(data.error || "Erro ao varrer o banco de questÂ§es.");
       }
 
       setRelatorio(data as RelatorioDuplicadasQuestoes);
@@ -120,9 +120,34 @@ export default function AuditoriaDuplicadasQuestoes() {
     }
   }
 
+  const excluirUnica = async (id: number) => {
+    await excluirQuestao(id);
+  };
+  async function excluirQuestao(id: number | string) {
+    if (!confirm("Tem certeza absoluta que deseja remover esta questao permanentemente do acervo?")) return;
+    try {
+      const { error } = await supabase.from('questoes').delete().eq('id', id);
+      if (error) throw error;
+      setRelatorio((prev: any) => {
+        if (!prev) return prev;
+        const novosGrupos = prev.duplicadas
+          .map((grupo: any) => ({
+            ...grupo,
+            questoes: grupo.questoes.filter((q: any) => String(q.id) !== String(id)),
+            ids: grupo.ids.filter((gid: any) => String(gid) !== String(id)),
+            quantidade: grupo.questoes.filter((q: any) => String(q.id) !== String(id)).length,
+          }))
+          .filter((grupo: any) => grupo.quantidade >= 2);
+        return { ...prev, duplicadas: novosGrupos, totalDuplicadasEncontradas: novosGrupos.length };
+      });
+    } catch (error: any) {
+      alert("Nao foi possivel excluir a questao: " + error.message);
+    }
+  }
+
 const excluirUnica = async (id: number) => {
     const confirmar = confirm(
-      `Excluir permanentemente a questão #${id}?\n\nEsta ação NÃO PODE ser desfeita.`
+      `Excluir permanentemente a questÃ’o #${id}?\n\nEsta aÃ¾Ã’o Nâ”œO PODE ser desfeita.`
     );
     if (!confirmar) return;
 
@@ -136,7 +161,7 @@ const excluirUnica = async (id: number) => {
         const mensagem = [data.error, data.details && data.details !== data.error ? `\n\n${data.details}` : null, data.hint ? `\n\nDica: ${data.hint}` : null]
           .filter(Boolean)
           .join("");
-        alert(mensagem || "Não foi possível excluir a questão.");
+        alert(mensagem || "NÃ’o foi possÃvel excluir a questÃ’o.");
         return;
       }
 
@@ -159,7 +184,7 @@ const excluirUnica = async (id: number) => {
       });
       setSelecionados((prev) => prev.filter((s) => s !== id));
     } catch (err: any) {
-      alert("Erro ao excluir questão: " + err.message);
+      alert("Erro ao excluir questÃ’o: " + err.message);
     } finally {
       setExcluindo(false);
       setExcluindoId(null);
@@ -169,7 +194,7 @@ const excluirUnica = async (id: number) => {
   const excluirSelecionadas = async () => {
     if (selecionados.length === 0) return;
     const confirmar = confirm(
-      `Excluir permanentemente ${selecionados.length} questão(ões) selecionada(s)?\n\nEsta ação NÃO PODE ser desfeita.`
+      `Excluir permanentemente ${selecionados.length} questÃ’o(Â§es) selecionada(s)?\n\nEsta aÃ¾Ã’o Nâ”œO PODE ser desfeita.`
     );
     if (!confirmar) return;
 
@@ -208,11 +233,11 @@ const excluirUnica = async (id: number) => {
         };
       });
 
-      // Limpa seleção das excluídas com sucesso
+      // Limpa seleÃ¾Ã’o das excluÃdas com sucesso
       setSelecionados((prev) => prev.filter((s) => !sucessoIds.has(s)));
 
-      // Mostra relatório detalhado
-      let mensagem = `Exclusão em lote finalizada.\n\nSucesso: ${sucessoIds.size}\nFalhas: ${falhas.length}`;
+      // Mostra relatÂ¾rio detalhado
+      let mensagem = `ExclusÃ’o em lote finalizada.\n\nSucesso: ${sucessoIds.size}\nFalhas: ${falhas.length}`;
       if (falhas.length > 0) {
         mensagem += "\n\nDetalhes das falhas:";
         for (const f of falhas.slice(0, 10)) {
@@ -235,12 +260,12 @@ const excluirUnica = async (id: number) => {
       <div className="max-w-6xl mx-auto px-6 pt-12 space-y-8">
         <div className="space-y-3">
           <h1 className="text-3xl font-serif text-white italic uppercase">
-            Auditoria de Duplicadas — Banco de Questões
+            Auditoria de Duplicadas Ã¹ Banco de QuestÂ§es
           </h1>
           <p className="text-zinc-400 max-w-3xl">
             Analisa todo o acervo da tabela <span className="text-zinc-200 font-medium">questoes</span> e aponta grupos com
-            enunciados idênticos (após normalização de tags HTML, espaços e maiúsculas/minúsculas). Ideal para limpar
-            repetições no banco geral.
+            enunciados idÃ›nticos (apÂ¾s normalizaÃ¾Ã’o de tags HTML, espaÃ¾os e maiÂ·sculas/minÂ·sculas). Ideal para limpar
+            repetiÃ¾Â§es no banco geral.
           </p>
         </div>
 
@@ -264,7 +289,7 @@ const excluirUnica = async (id: number) => {
                 </select>
               </div>
               <div className="text-xs text-zinc-400 max-w-xs">
-                Agrupa por enunciado normalizado. Considera duplicada quando há <span className="text-zinc-200">= 2 IDs</span> com mesmo texto.
+                Agrupa por enunciado normalizado. Considera duplicada quando hÃŸ <span className="text-zinc-200">= 2 IDs</span> com mesmo texto.
               </div>
             </div>
 
@@ -276,10 +301,10 @@ const excluirUnica = async (id: number) => {
               {analisando ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Analisando todo o banco de questões...
+                  Analisando todo o banco de questÂ§es...
                 </>
               ) : (
-                "Varrer Banco de Questões"
+                "Varrer Banco de QuestÂ§es"
               )}
             </button>
           </div>
@@ -290,7 +315,7 @@ const excluirUnica = async (id: number) => {
             <div className="flex items-center gap-2 text-red-200">
               <Trash2 className="w-4 h-4" />
               <span className="text-sm font-semibold">
-                {selecionados.length} questão(ões) selecionada(s)
+                {selecionados.length} questÃ’o(Â§es) selecionada(s)
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -299,7 +324,7 @@ const excluirUnica = async (id: number) => {
                 disabled={excluindo}
                 className="text-xs font-bold bg-white/5 border border-white/10 text-zinc-200 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50"
               >
-                Limpar seleção
+                Limpar seleÃ¾Ã’o
               </button>
               <button
                 onClick={excluirSelecionadas}
@@ -331,7 +356,7 @@ const excluirUnica = async (id: number) => {
                   </span>
                 </div>
                 <div className="text-zinc-400">
-                  Questões analisadas: <span className="text-zinc-200">{relatorio.totalQuestoesAnalisadas}</span>
+                  QuestÂ§es analisadas: <span className="text-zinc-200">{relatorio.totalQuestoesAnalisadas}</span>
                 </div>
               </div>
 
@@ -342,7 +367,7 @@ const excluirUnica = async (id: number) => {
                     type="text"
                     value={filtro}
                     onChange={(e) => setFiltro(e.target.value)}
-                    placeholder="Filtrar por texto, ID, banca, órgão, cargo ou matéria..."
+                    placeholder="Filtrar por texto, ID, banca, Â¾rgÃ’o, cargo ou matÃšria..."
                     className="bg-black/40 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500/60 w-80"
                   />
                 </div>
@@ -352,8 +377,8 @@ const excluirUnica = async (id: number) => {
             {relatorio.totalDuplicadasEncontradas === 0 ? (
               <div className="p-8 text-center bg-emerald-500/10 border border-emerald-500/40 text-emerald-300 rounded-2xl flex flex-col items-center gap-3 shadow-lg shadow-black/20">
                 <CheckCircle2 className="w-8 h-8" />
-                <p className="font-semibold text-lg">Nenhuma duplicidade encontrada no banco de questões.</p>
-                <p className="text-sm text-emerald-300/80">Todos os enunciados são únicos após a normalização.</p>
+                <p className="font-semibold text-lg">Nenhuma duplicidade encontrada no banco de questÂ§es.</p>
+                <p className="text-sm text-emerald-300/80">Todos os enunciados sÃ’o Â·nicos apÂ¾s a normalizaÃ¾Ã’o.</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -366,7 +391,7 @@ const excluirUnica = async (id: number) => {
                       <div className="flex items-center gap-3">
                         <span className="bg-amber-500/10 border border-amber-500/40 text-amber-400 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5">
                           <AlertTriangle className="w-3.5 h-3.5" />
-                          Grupo com {item.quantidade} questões idênticas
+                          Grupo com {item.quantidade} questÂ§es idÃ›nticas
                         </span>
                         <button
                           onClick={() => toggleGrupo(item.ids)}
@@ -382,12 +407,12 @@ const excluirUnica = async (id: number) => {
                     </div>
 
                     <p className="text-zinc-100 font-medium leading-relaxed border-l-2 border-amber-500/60 pl-4">
-                      “{item.textoReferencia}”
+                      Ã´{item.textoReferencia}Ã¶
                     </p>
 
                     <div className="space-y-3 bg-black/20 border border-white/10 p-4 rounded-xl overflow-x-auto">
                       <span className="block text-zinc-400 font-semibold text-xs uppercase tracking-wider mb-2">
-                        Questões no grupo
+                        QuestÂ§es no grupo
                       </span>
                       <div className="min-w-[820px] space-y-2">
                         {item.questoes.map((q) => (
@@ -415,25 +440,25 @@ const excluirUnica = async (id: number) => {
                               <ExternalLink className="w-3.5 h-3.5" />
                             </Link>
                             <div className="truncate text-zinc-300" title={q.banca || ""}>
-                              {q.banca || <span className="text-zinc-500">—</span>}
+                              {q.banca || <span className="text-zinc-500">Ã¹</span>}
                             </div>
                             <div className="truncate text-zinc-300" title={q.orgao || ""}>
-                              {q.orgao || <span className="text-zinc-500">—</span>}
+                              {q.orgao || <span className="text-zinc-500">Ã¹</span>}
                             </div>
                             <div className="truncate text-zinc-300" title={q.cargo || ""}>
-                              {q.cargo || <span className="text-zinc-500">—</span>}
+                              {q.cargo || <span className="text-zinc-500">Ã¹</span>}
                             </div>
                             <div className="truncate text-zinc-300" title={q.materia || ""}>
-                              {q.materia || <span className="text-zinc-500">—</span>}
+                              {q.materia || <span className="text-zinc-500">Ã¹</span>}
                             </div>
                             <div className="text-center text-zinc-300">
-                              {q.ano ?? <span className="text-zinc-500">—</span>}
+                              {q.ano ?? <span className="text-zinc-500">Ã¹</span>}
                             </div>
                             <button
                               onClick={() => excluirUnica(q.id)}
                               disabled={excluindo}
                               className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
-                              title="Excluir questão"
+                              title="Excluir questÃ’o"
                             >
                               {excluindoId === q.id && excluindo ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -455,4 +480,7 @@ const excluirUnica = async (id: number) => {
     </div>
   );
 }
+
+
+
 
