@@ -1,4 +1,5 @@
-﻿import { supabase } from '@/lib/supabase';
+﻿"use client"
+import { supabase } from '@/lib/supabase';
 "use client";
 
 import { useState } from "react";
@@ -455,3 +456,4 @@ const excluirUnica = async (id: number) => {
     </div>
   );
 }
+
