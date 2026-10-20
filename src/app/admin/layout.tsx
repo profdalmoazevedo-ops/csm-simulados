@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -71,7 +71,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const menuAdmin = [
-    { name: 'Visão Geral', href: '/admin', icon: LayoutDashboard },
+    { name: 'Auditoria Duplicadas', href: '/admin/questoes/duplicadas', icon: ShieldAlert },
     { name: 'Banco de Questões', href: '/admin/questoes', icon: Database },
     { name: 'Simulados Temáticos', href: '/admin/simulados', icon: BookOpen },
     { name: 'Gestão de Alunos', href: '/admin/alunos', icon: Users },
