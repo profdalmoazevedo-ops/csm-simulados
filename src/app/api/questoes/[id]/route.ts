@@ -10,18 +10,42 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> } | { params: { id: string } }
 ) {
   try {
-    let idStr: string;
-    if (context.params instanceof Promise) {
-      const p = await context.params;
-      idStr = p.id;
-    } else {
-      idStr = (context.params as any).id;
-    }
-    const id = Number(idStr);
+    let idStr: string | undefined;
 
-    if (!Number.isFinite(id) || isNaN(id)) {
+    if ("params" in context) {
+      const paramsAny = context.params as any;
+      if (paramsAny && typeof paramsAny.then === "function") {
+        const p = await paramsAny;
+        idStr = p?.id;
+      } else {
+        idStr = paramsAny?.id;
+      }
+    }
+
+    if (!idStr) {
       return NextResponse.json(
-        { error: "ID da questão inválido.", details: idStr, hint: null },
+        {
+          error: "ID da questão inválido.",
+          details: "Parâmetro 'id' ausente na rota.",
+          hint: null,
+        },
+        { status: 400 }
+      );
+    }
+
+    idStr = decodeURIComponent(String(idStr))
+      .trim()
+      .replace(/[^\d-]/g, "");
+
+    const id = Number.parseInt(idStr, 10);
+
+    if (!Number.isFinite(id) || Number.isNaN(id) || id <= 0) {
+      return NextResponse.json(
+        {
+          error: "ID da questão inválido.",
+          details: `Valor recebido: "${idStr}"`,
+          hint: "O ID deve ser numérico.",
+        },
         { status: 400 }
       );
     }
