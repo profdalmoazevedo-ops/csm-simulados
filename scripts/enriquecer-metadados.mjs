@@ -64,11 +64,13 @@ const dividirProva = (prova) => {
 
 const extrairUrlsDDG = (html) => {
   const urls = [];
-  const re = /href="([^"]*uddg=[^"]*)"/g;
+  // Aceita o HTML do DuckDuckGo (href="...") e o markdown do leitor
+  // r.jina.ai ("](..."), que é o formato do fallback.
+  const re = /(?:href="|\]\()([^")\s]*uddg=[^")\s]*)/g;
   let m;
   while ((m = re.exec(html)) !== null) {
     try {
-      const uddg = m[1].match(/uddg=([^&"']+)/);
+      const uddg = m[1].match(/uddg=([^&"'\s)]+)/);
       if (!uddg) continue;
       let d = uddg[1];
       if (d.includes('%253D')) d = decodeURIComponent(d);
@@ -83,18 +85,45 @@ const sleep = (ms) => new Promise(res => setTimeout(res, ms));
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
+const filtrarUrlsGran = (urls) =>
+  urls.filter(u => u.includes('questoes.grancursosonline.com.br/questoes-de-concursos/')).slice(0, 3);
+
+// Fallback: quando o DuckDuckGo bloqueia o IP da máquina, a busca passa pelo
+// leitor r.jina.ai, que busca do lado dele e devolve o resultado em markdown.
+async function buscarNoDDGViaJina(trecho) {
+  const q = encodeURIComponent(`"${trecho}"`);
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 30000);
+    const res = await fetch(`https://r.jina.ai/https://html.duckduckgo.com/html/?q=${q}`, {
+      headers: { Accept: 'text/plain' },
+      signal: ctrl.signal
+    });
+    clearTimeout(t);
+    if (!res.ok) return { urls: [], bloqueado: true, via: 'jina' };
+    const texto = await res.text();
+    if (texto.includes('No more results found') || texto.includes('No results found')) {
+      return { urls: [], bloqueado: false, via: 'jina' };
+    }
+    return { urls: filtrarUrlsGran(extrairUrlsDDG(texto)), bloqueado: false, via: 'jina' };
+  } catch {
+    return { urls: [], bloqueado: true, via: 'jina' };
+  }
+}
+
 async function buscarNoDDG(trecho) {
   const q = encodeURIComponent(`"${trecho}"`);
   const res = await fetch(`https://html.duckduckgo.com/html/?q=${q}`, {
     headers: { 'User-Agent': UA, 'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.5' }
   });
-  if (!res.ok) return { urls: [], bloqueado: false };
+  if (!res.ok) return buscarNoDDGViaJina(trecho);
   const html = await res.text();
-  if (html.includes('No results found')) return { urls: [], bloqueado: false };
-  if (html.includes('anomaly')) return { urls: [], bloqueado: true };
+  if (html.includes('No results found')) return { urls: [], bloqueado: false, via: 'ddg' };
+  if (html.includes('anomaly')) return buscarNoDDGViaJina(trecho);
   return {
-    urls: extrairUrlsDDG(html).filter(u => u.includes('questoes.grancursosonline.com.br/questoes-de-concursos/')).slice(0, 3),
-    bloqueado: false
+    urls: filtrarUrlsGran(extrairUrlsDDG(html)),
+    bloqueado: false,
+    via: 'ddg'
   };
 }
 
@@ -182,7 +211,7 @@ async function verificarAcessoDDG() {
   for (let tent = 1; tent <= 4; tent++) {
     const s = await buscarNoDDG('questões de concursos gran cursos online');
     if (!s.bloqueado) {
-      console.log('🟢 DuckDuckGo acessível.\n');
+      console.log(`🟢 Busca disponível (via ${s.via === 'jina' ? 'leitor r.jina.ai' : 'DuckDuckGo'}).\n`);
       return true;
     }
     if (tent < 4) {
@@ -190,7 +219,7 @@ async function verificarAcessoDDG() {
       await sleep(30000);
     }
   }
-  console.error('🔴 DuckDuckGo continua bloqueado neste momento (rate-limit temporário por IP).');
+  console.error('🔴 A busca continua bloqueada neste momento (rate-limit temporário por IP).');
   console.error('   Espere alguns minutos e rode de novo, ou tente mais tarde. O bloqueio some sozinho.');
   return false;
 }

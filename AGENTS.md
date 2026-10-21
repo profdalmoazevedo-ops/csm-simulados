@@ -50,7 +50,7 @@ A manual migration must be run in the Supabase SQL Editor before the pages below
 - `npm run dev` / `npm run build` / `npm run start`
 - `npm run lint` (eslint flat config in `eslint.config.mjs`)
 - No typecheck or test scripts are configured — run `npx tsc --noEmit` to typecheck. There is no test suite.
-- `npm run enriquecer-metadados` — local CLI (roda na máquina do usuário, IP residencial): busca cada questão faltante de cargo/órgão no Gran Cursos Questões (via DuckDuckGo direto + fetch direto/jina) e grava com `SUPABASE_SERVICE_ROLE_KEY` de `.env.local`. Flags: `--dry-run`, `--limite N`. O `/api/inferir-metadados` (admin) faz o mesmo mas server-side (Vercel) e é mais limitado (rate-limit do DDG / IP compartilhado) — o script é o caminho confiável para lotes grandes.
+- `npm run enriquecer-metadados` — local CLI (roda na máquina do usuário, IP residencial): busca cada questão faltante de cargo/órgão no Gran Cursos Questões e grava com `SUPABASE_SERVICE_ROLE_KEY` de `.env.local`. Flags: `--dry-run`, `--limite N`. A busca vai ao DuckDuckGo; quando o DDG bloqueia o IP (rate-limit), o script cai automaticamente no leitor `r.jina.ai`, que busca do lado do Jina e devolve os mesmos links. A leitura da página da questão também usa `r.jina.ai` (o site responde 403 direto). Taxa de acerto ~35%: o resto não está indexado na web. O `/api/inferir-metadados` (admin) faz o mesmo mas server-side (Vercel) e é mais limitado (IP compartilhado) — o script é o caminho confiável para lotes grandes.
 
 ## Quirks
 - Navbar is intentionally hidden on `/auth` and `/simulado/*`.
