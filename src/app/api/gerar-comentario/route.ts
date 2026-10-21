@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { mensagemDeErro } from "@/lib/erros";
 
 export const maxDuration = 60;
 
@@ -111,15 +112,15 @@ export async function POST(request: Request) {
 
       responseText = candidate.content.parts[0].text;
 
-    } catch (erroGemini: any) {
-      console.warn("⚠️ Google falhou totalmente. Acionando contingência Groq (GPT-OSS-120b):", erroGemini.message);
+    } catch (erroGemini) {
+      console.warn("⚠️ Google falhou totalmente. Acionando contingência Groq (GPT-OSS-120b):", mensagemDeErro(erroGemini));
 
       // =========================================================================
       // 4️⃣ CONTINGÊNCIA: Groq (Llama 3 / GPT-OSS)
       // =========================================================================
       const groqApiKey = process.env.GROQ_API_KEY;
       if (!groqApiKey) {
-        throw new Error(`O Gemini falhou (${erroGemini.message}) e a Groq não está configurada.`);
+        throw new Error(`O Gemini falhou (${mensagemDeErro(erroGemini)}) e a Groq não está configurada.`);
       }
 
       const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -156,11 +157,12 @@ export async function POST(request: Request) {
       comentario: responseText.trim() 
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error("[API Gerar Comentário] Erro Crítico:", error);
     
     // Tratamento genérico de falha extrema para avisar o frontend
-    if (error.message.includes("429") || error.message.includes("Quota") || error.message.includes("Too Many Requests") || error.message.includes("503")) {
+    const mensagem = mensagemDeErro(error);
+    if (mensagem.includes("429") || mensagem.includes("Quota") || mensagem.includes("Too Many Requests") || mensagem.includes("503")) {
       return NextResponse.json(
         { error: "Limite de requisições atingido em todas as IAs. Aguarde alguns segundos." },
         { status: 429 }
@@ -168,7 +170,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { error: `Falha na IA: ${error.message}` },
+      { error: `Falha na IA: ${mensagemDeErro(error)}` },
       { status: 500 }
     );
   }

@@ -4,17 +4,19 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Plus, Search, Edit, Trash2, FileText, CheckCircle2, Clock, AlertCircle, Layers, Printer } from 'lucide-react';
 import Link from 'next/link';
+import { mensagemDeErro } from "@/lib/erros";
+import { SimuladoLista } from "@/lib/tipos";
+
+
+
 
 export default function GestaoSimuladosAdmin() {
-  const [simulados, setSimulados] = useState<any[]>([]);
+  const [simulados, setSimulados] = useState<SimuladoLista[]>([]);
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState("");
   
   const [filtroTipo, setFiltroTipo] = useState<"todos" | "tematico_professor" | "gerado_aluno">("todos");
 
-  useEffect(() => {
-    carregarSimulados();
-  }, []);
 
   async function carregarSimulados() {
     setLoading(true);
@@ -27,12 +29,18 @@ export default function GestaoSimuladosAdmin() {
 
       if (error) throw error;
       setSimulados(data || []);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erro ao carregar simulados:", error);
     } finally {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    (async () => {
+      await carregarSimulados();
+    })();
+  }, []);
 
   async function excluirSimulado(id: string) {
     if (!confirm("Tem certeza que deseja excluir este simulado? Os alunos não poderão mais acessá-lo.")) {
@@ -47,8 +55,8 @@ export default function GestaoSimuladosAdmin() {
 
       if (error) throw error;
       setSimulados(prev => prev.filter(s => s.id !== id));
-    } catch (error: any) {
-      alert("Erro ao excluir: " + error.message);
+    } catch (error) {
+      alert("Erro ao excluir: " + mensagemDeErro(error));
     }
   }
 

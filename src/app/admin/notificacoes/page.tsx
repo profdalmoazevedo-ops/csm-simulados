@@ -3,9 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Bell, Send, Trash2, Edit3, Link2, Users, CreditCard, CheckCircle, X } from 'lucide-react';
+import { Notificacao, PublicoAlvo } from "@/lib/tipos";
+
+
+
 
 export default function CentralNotificacoesGestao() {
-  const [notificacoes, setNotificacoes] = useState<any[]>([]);
+  const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
   const [titulo, setTitulo] = useState('');
   const [mensagem, setMensagem] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
@@ -35,7 +39,9 @@ export default function CentralNotificacoesGestao() {
   };
 
   useEffect(() => {
-    carregarNotificacoes();
+    (async () => {
+      await carregarNotificacoes();
+    })();
   }, []);
 
   // Enviar ou Atualizar Notificação
@@ -94,12 +100,12 @@ export default function CentralNotificacoesGestao() {
   };
 
   // Preparar para editar
-  const handleIniciarEdicao = (notif: any) => {
+  const handleIniciarEdicao = (notif: Notificacao) => {
     setEditandoId(notif.id);
     setTitulo(notif.titulo || '');
     setMensagem(notif.mensagem || '');
     setLinkUrl(notif.link_url || '');
-    setPublicoAlvo(notif.publico_alvo || 'todos');
+    setPublicoAlvo((notif.publico_alvo || 'todos') as PublicoAlvo);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

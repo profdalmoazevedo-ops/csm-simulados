@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { ehCampoFaltante } from '@/lib/metadados';
 import { Plus, Search, Edit, Trash2, Database, BookOpen, AlertCircle, Filter, Wand2, RefreshCcw, ChevronDown, ChevronsDownUp, ChevronsUpDown, CopyCheck } from 'lucide-react';
 import Link from 'next/link';
+import { mensagemDeErro } from "@/lib/erros";
 
 type Questao = {
   id: string;
@@ -13,7 +14,17 @@ type Questao = {
   enunciado: string | null;
   comentario_gabarito: string | null;
   criado_em?: string;
-  [chave: string]: any;
+  banca?: string | null;
+  orgao?: string | null;
+  cargo?: string | null;
+  ano?: number | null;
+  gabarito?: string | null;
+  tipo_questao?: string | null;
+  alternativa_a?: string | null;
+  alternativa_b?: string | null;
+  alternativa_c?: string | null;
+  alternativa_d?: string | null;
+  alternativa_e?: string | null;
 };
 
 type GrupoTopico = {
@@ -99,7 +110,7 @@ export default function BancoDeQuestoesAdmin() {
       if (error) throw error;
       setQuestoes(data || []);
       setQtdFaltantes((data || []).filter(q => ehCampoFaltante(q.orgao) || ehCampoFaltante(q.cargo)).length);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Erro interno ao carregar questões:", error);
     } finally {
       setLoading(false);
@@ -209,8 +220,8 @@ export default function BancoDeQuestoesAdmin() {
         alert(`🎉 Processo finalizado! ${ok} comentário(s) gerado(s) com sucesso.`);
       }
       carregarQuestoes(); 
-    } catch (err: any) {
-      alert("Erro ao processar lote: " + err.message);
+    } catch (err) {
+      alert("Erro ao processar lote: " + mensagemDeErro(err));
     } finally {
       setGerandoLote(false);
       setProgressoLote("");
@@ -224,8 +235,8 @@ export default function BancoDeQuestoesAdmin() {
       const { error } = await supabase.from('questoes').delete().eq('id', id);
       if (error) throw error;
       setQuestoes(prev => prev.filter(q => q.id !== id));
-    } catch (error: any) {
-      alert("Não foi possível excluir a questão: " + error.message);
+    } catch (error) {
+      alert("Não foi possível excluir a questão: " + mensagemDeErro(error));
     }
   }
 

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { ChamadoSuporte } from "@/lib/tipos";
 import { uploadImagensSuporte, montarMensagemComImagens } from '@/lib/uploadImagem';
 import AnexadorImagem from '@/components/AnexadorImagem';
 import MensagemComImagens from '@/components/MensagemComImagens';
@@ -80,12 +81,12 @@ function HistoricoMensagem({ mensagem }: { mensagem: string }) {
 }
 
 export default function GestaoSuporteAdmin() {
-  const [chamados, setChamados] = useState<any[]>([]);
+  const [chamados, setChamados] = useState<ChamadoSuporte[]>([]);
   const [loading, setLoading] = useState(true);
   const [enunciados, setEnunciados] = useState<Record<string, string>>({});
   
   // Controle de Modal Unificado
-  const [modalAcao, setModalAcao] = useState<{tipo: 'iniciar' | 'resolver' | null, chamado: any}>({ tipo: null, chamado: null });
+  const [modalAcao, setModalAcao] = useState<{tipo: 'iniciar' | 'resolver' | null, chamado: ChamadoSuporte | null}>({ tipo: null, chamado: null });
   const [respostaTexto, setRespostaTexto] = useState("");
   const [imagensResposta, setImagensResposta] = useState<File[]>([]);
   const [processando, setProcessando] = useState(false);
@@ -161,14 +162,16 @@ export default function GestaoSuporteAdmin() {
     try {
       await supabase.from('chamados_suporte').delete().eq('id', id);
       setChamados(prev => prev.filter(c => c.id !== id));
-    } catch (err) {
+    } catch {
       alert("Erro ao apagar chamado.");
     }
   };
 
   const processarAcao = async () => {
-    setProcessando(true);
     const { chamado, tipo } = modalAcao;
+    if (!chamado) return;
+
+    setProcessando(true);
 
     try {
       const urlsImagens = await uploadImagensSuporte(imagensResposta);
@@ -202,7 +205,7 @@ export default function GestaoSuporteAdmin() {
       setRespostaTexto("");
       setImagensResposta([]);
       await carregarChamados();
-    } catch (err) {
+    } catch {
       alert("Erro ao processar a ação do chamado.");
     } finally {
       setProcessando(false);

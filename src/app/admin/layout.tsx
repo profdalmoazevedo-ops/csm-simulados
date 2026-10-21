@@ -1,11 +1,10 @@
-﻿"use client";
+﻿﻿﻿"use client";
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { 
-  LayoutDashboard, 
   Database, 
   BookOpen, 
   Users, 

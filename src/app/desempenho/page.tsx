@@ -51,7 +51,7 @@ export default function AnaliseDesempenho() {
         if (error) throw error;
 
         if (data && data.length > 0) {
-          const dadosFormatados: TentativaHistorico[] = data.map((t: any) => ({
+          const dadosFormatados: TentativaHistorico[] = data.map((t: (typeof data)[number]) => ({
             id: t.id,
             data_conclusao: t.data_conclusao,
             total_acertos: t.total_acertos,

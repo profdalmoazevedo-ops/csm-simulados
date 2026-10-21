@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { mensagemDeErro } from "@/lib/erros";
 
 export const maxDuration = 60; 
 
@@ -63,8 +64,8 @@ export async function POST(req: Request) {
       const geminiData = await geminiResponse.json();
       textoIAResposta = geminiData.candidates[0].content.parts[0].text;
 
-    } catch (erroGemini: any) {
-      console.warn("⚠️ Acionando Groq para importação única:", erroGemini.message);
+    } catch (erroGemini) {
+      console.warn("⚠️ Acionando Groq para importação única:", mensagemDeErro(erroGemini));
       const groqApiKey = process.env.GROQ_API_KEY;
       
       const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -95,7 +96,7 @@ export async function POST(req: Request) {
       questoes: listaQuestoes 
     });
 
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: mensagemDeErro(error) }, { status: 500 });
   }
 }

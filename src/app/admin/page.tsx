@@ -2,10 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, CheckCircle2 } from 'lucide-react';
+import { QuestaoResumida } from "@/lib/tipos";
+
+
+
 
 export default function AdminAtualizarQuestoes() {
-  const [questaoAtual, setQuestaoAtual] = useState<any>(null);
+  const [questaoAtual, setQuestaoAtual] = useState<QuestaoResumida | null>(null);
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [restantes, setRestantes] = useState(0);
@@ -58,7 +62,9 @@ export default function AdminAtualizarQuestoes() {
   };
 
   useEffect(() => {
-    buscarProximaQuestao();
+    (async () => {
+      await buscarProximaQuestao();
+    })();
   }, []);
 
   // Salva os dados e chama a próxima

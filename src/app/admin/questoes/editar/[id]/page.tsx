@@ -4,6 +4,11 @@ import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { ArrowLeft, Save, BookOpen, AlertCircle, CheckCircle2, Wand2, Info } from 'lucide-react';
 import Link from 'next/link';
+import { mensagemDeErro } from "@/lib/erros";
+import { AlternativaKey, Questao } from "@/lib/tipos";
+
+
+
 
 export default function EditarQuestaoAdmin() {
   const router = useRouter();
@@ -59,8 +64,8 @@ export default function EditarQuestaoAdmin() {
             comentario_gabarito: data.comentario_gabarito ? data.comentario_gabarito.replace(/<br\s*\/?>/gi, '\n') : ''
           });
         }
-      } catch (err: any) {
-        setErro("Erro ao carregar os dados da questão: " + err.message);
+      } catch (err) {
+        setErro("Erro ao carregar os dados da questão: " + mensagemDeErro(err));
       } finally {
         setLoading(false);
       }
@@ -108,8 +113,8 @@ export default function EditarQuestaoAdmin() {
       const comentarioLimpoParaEdicao = data.comentario.replace(/<br\s*\/?>/gi, '\n');
       setFormData(prev => ({ ...prev, comentario_gabarito: comentarioLimpoParaEdicao }));
       alert("✅ Comentário gerado com sucesso! Não esqueça de clicar em 'Atualizar Questão' no final da página para salvar no banco.");
-    } catch (err: any) {
-      setErro(err.message || "Não foi possível gerar o comentário agora.");
+    } catch (err) {
+      setErro(mensagemDeErro(err) || "Não foi possível gerar o comentário agora.");
     } finally {
       setGerandoComentario(false);
     }
@@ -123,7 +128,7 @@ export default function EditarQuestaoAdmin() {
     try {
       const comentarioProntoProBanco = formData.comentario_gabarito ? formData.comentario_gabarito.replace(/\n/g, '<br/>') : '';
 
-      const updateData: any = {
+      const updateData: Partial<Questao> = {
         banca: formData.banca,
         orgao: formData.orgao, // 🚀 SALVA NO BANCO
         cargo: formData.cargo, // 🚀 SALVA NO BANCO
@@ -146,8 +151,8 @@ export default function EditarQuestaoAdmin() {
 
       router.push('/admin/questoes');
       router.refresh();
-    } catch (err: any) {
-      setErro(err.message || "Houve um erro ao atualizar a questão.");
+    } catch (err) {
+      setErro(mensagemDeErro(err) || "Houve um erro ao atualizar a questão.");
     } finally {
       setSalvando(false);
     }
@@ -247,7 +252,7 @@ export default function EditarQuestaoAdmin() {
               {['a', 'b', 'c', 'd', 'e'].map((letra) => (
                 <div key={letra} className="flex gap-3 items-start">
                   <span className="w-8 h-8 shrink-0 bg-white/5 border border-white/10 text-zinc-400 text-xs font-bold rounded flex items-center justify-center uppercase mt-1">{letra}</span>
-                  <textarea name={`alternativa_${letra}`} value={(formData as any)[`alternativa_${letra}`]} onChange={handleChange} rows={2} required={letra === 'a' || letra === 'b'}
+                  <textarea name={`alternativa_${letra}`} value={formData[`alternativa_${letra}` as AlternativaKey]} onChange={handleChange} rows={2} required={letra === 'a' || letra === 'b'}
                     className="w-full text-sm bg-[#09090b] border border-white/10 text-zinc-200 rounded-lg px-4 py-2 focus:border-blue-500 outline-none transition-all resize-y" />
                 </div>
               ))}

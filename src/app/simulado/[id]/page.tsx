@@ -5,6 +5,10 @@ import { supabase } from '@/lib/supabase';
 import ReportarErroQuestao from '@/components/ReportarErroQuestao';
 import { useParams, useRouter } from 'next/navigation';
 import { Loader2, CheckCircle2, XCircle, ArrowLeft, MessageSquare, Clock, Hash, Copy, Check, RotateCcw } from 'lucide-react';
+import { AlternativaKey, Questao, RespostaAluno, Simulado } from "@/lib/tipos";
+
+
+
 
 type Tentativa = {
   numero_tentativa: number | null;
@@ -18,8 +22,8 @@ export default function ResolucaoSimulado() {
   const router = useRouter();
   const simuladoId = params.id as string;
 
-  const [simulado, setSimulado] = useState<any>(null);
-  const [questoes, setQuestoes] = useState<any[]>([]);
+  const [simulado, setSimulado] = useState<Simulado | null>(null);
+  const [questoes, setQuestoes] = useState<Questao[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [respostas, setRespostas] = useState<Record<string, string>>({});
@@ -95,7 +99,7 @@ export default function ResolucaoSimulado() {
 
         if (erroRelacoes) throw erroRelacoes;
 
-        const listaQuestoes = relacoes.map((item: any) => item.questoes);
+        const listaQuestoes = relacoes.flatMap((item) => item.questoes ?? []);
         setQuestoes(listaQuestoes);
 
         if (user) {
@@ -111,7 +115,7 @@ export default function ResolucaoSimulado() {
             let erros = 0;
             let brancos = 0;
 
-            respostasSalvas.forEach((r: any) => {
+            respostasSalvas.forEach((r: RespostaAluno) => {
               if (r.alternativa_marcada) {
                 respostasFormatadas[r.questao_id] = r.alternativa_marcada.toLowerCase();
                 if (r.foi_correta) acertos++;
@@ -208,7 +212,7 @@ export default function ResolucaoSimulado() {
     });
 
     let notaFinal = acertos;
-    if (simulado.regra_subtracao) {
+    if (simulado?.regra_subtracao) {
       notaFinal = acertos - erros;
       if (notaFinal < 0) notaFinal = 0;
     }
@@ -504,7 +508,7 @@ export default function ResolucaoSimulado() {
                   ) : (
                     /* MÚLTIPLA ESCOLHA */
                     ['a', 'b', 'c', 'd', 'e'].map((letra) => {
-                      const alternativaTexto = questao[`alternativa_${letra}`];
+                      const alternativaTexto = questao[`alternativa_${letra}` as AlternativaKey];
                       
                       if (!alternativaTexto || String(alternativaTexto).trim().toLowerCase() === 'null' || String(alternativaTexto).trim() === '') {
                         return null;

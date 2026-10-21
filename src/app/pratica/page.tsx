@@ -1,9 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import ReportarErroQuestao from '@/components/ReportarErroQuestao';
 import { Filter, Loader2, BookOpen, CheckCircle2, XCircle, MessageSquare, ChevronDown, Hash, Copy, Check, RefreshCw } from 'lucide-react';
+import { AlternativaKey, Questao } from "@/lib/tipos";
+
+
+
 
 const TAMANHO_PAGINA = 15;
 
@@ -31,11 +35,15 @@ const OPCOES_ORDEM: { valor: string; rotulo: string }[] = [
   { valor: 'antigas', rotulo: 'Mais antigas' }
 ];
 
-const DropdownBuscavel = ({ label, placeholder, opcoes, valor, setValor, disabled = false }: { label: string, placeholder: string, opcoes: any[], valor: string, setValor: (v: string) => void, disabled?: boolean }) => {
+const DropdownBuscavel = ({ label, placeholder, opcoes, valor, setValor, disabled = false }: { label: string, placeholder: string, opcoes: string[], valor: string, setValor: (v: string) => void, disabled?: boolean }) => {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState('');
   
-  useEffect(() => { setBusca(valor); }, [valor]);
+  const [valorAnterior, setValorAnterior] = useState(valor);
+  if (valor !== valorAnterior) {
+    setValorAnterior(valor);
+    setBusca(valor);
+  }
 
   const opcoesFiltradas = opcoes.filter(op => 
     String(op).toLowerCase().includes(busca.toLowerCase())
@@ -85,7 +93,7 @@ const DropdownBuscavel = ({ label, placeholder, opcoes, valor, setValor, disable
 };
 
 export default function BancoDeQuestoes() {
-  const [questoes, setQuestoes] = useState<any[]>([]);
+  const [questoes, setQuestoes] = useState<Questao[]>([]);
   const [loading, setLoading] = useState(true);
   const [carregandoMais, setCarregandoMais] = useState(false);
   const [totalResultados, setTotalResultados] = useState(0);
@@ -173,7 +181,9 @@ export default function BancoDeQuestoes() {
           }));
         });
     } else {
-      setOpcoes(prev => ({ ...prev, topicos: [] }));
+      Promise.resolve().then(() => {
+        setOpcoes(prev => ({ ...prev, topicos: [] }));
+      });
     }
   }, [materiaSelecionada]);
 
@@ -185,7 +195,7 @@ export default function BancoDeQuestoes() {
   // Filtros, ordenação, situação e paginação rodam no banco: excluir as questões
   // já respondidas exigiria uma lista de ids que não cabe na URL, e o contador
   // só é exato se o total for calculado com os mesmos filtros da página.
-  const buscarQuestoes = async (pagina = 0) => {
+  const buscarQuestoes = useCallback(async (pagina = 0) => {
     if (pagina === 0) setLoading(true);
     else setCarregandoMais(true);
 
@@ -241,22 +251,35 @@ export default function BancoDeQuestoes() {
         setCarregandoMais(false);
       }
     }
-  };
+  }, [
+    bancaSelecionada,
+    cargoSelecionado,
+    orgaoSelecionado,
+    materiaSelecionada,
+    topicoSelecionado,
+    anoSelecionado,
+    formatoSelecionado,
+    situacao,
+    periodo,
+    ordem
+  ]);
 
   // Carrega no primeiro render e a cada mudança de filtro: contador e lista
   // reagem sozinhos, sem depender do botão. O botão "Aplicar Filtros" continua
   // existindo como refresh manual (útil depois de responder uma questão, que
   // também altera o resultado dos filtros de situação).
   useEffect(() => {
-    buscarQuestoes(0);
-  }, [bancaSelecionada, cargoSelecionado, orgaoSelecionado, materiaSelecionada, topicoSelecionado, anoSelecionado, formatoSelecionado, situacao, periodo, ordem]);
+    (async () => {
+      await buscarQuestoes(0);
+    })();
+  }, [buscarQuestoes]);
 
   const selecionarAlternativa = (questaoId: string, letra: string) => {
     if (respostas[questaoId]) return;
     setSelecoes(prev => ({ ...prev, [questaoId]: letra }));
   };
 
-  const confirmarResposta = async (questao: any) => {
+  const confirmarResposta = async (questao: Questao) => {
     const alternativaMarcada = selecoes[questao.id];
     if (!alternativaMarcada || respostas[questao.id]) return;
 
@@ -315,7 +338,7 @@ export default function BancoDeQuestoes() {
                 <div className="h-px bg-white/5 my-4"></div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <DropdownBuscavel label="Ano" placeholder="Ex: 2024" opcoes={opcoes.anos} valor={anoSelecionado} setValor={setAnoSelecionado} />
+                  <DropdownBuscavel label="Ano" placeholder="Ex: 2024" opcoes={opcoes.anos.map((a) => String(a))} valor={anoSelecionado} setValor={setAnoSelecionado} />
                   <DropdownBuscavel label="Formato" placeholder="Ex: Múltipla" opcoes={opcoes.formatos} valor={formatoSelecionado} setValor={setFormatoSelecionado} />
                 </div>
 
@@ -431,7 +454,7 @@ export default function BancoDeQuestoes() {
 
                     <div className="space-y-3">
                     {['a', 'b', 'c', 'd', 'e'].map((letra) => {
-  const alternativaTexto = questao[`alternativa_${letra}`];
+  const alternativaTexto = questao[`alternativa_${letra}` as AlternativaKey];
   
   // Ignora se for vazio, se for o texto "null" ou se tiver apenas espaços
   if (!alternativaTexto || String(alternativaTexto).trim().toLowerCase() === 'null' || String(alternativaTexto).trim() === '') {

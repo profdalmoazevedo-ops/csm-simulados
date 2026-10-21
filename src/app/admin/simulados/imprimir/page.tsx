@@ -3,15 +3,20 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Printer, AlertCircle, ArrowLeft } from 'lucide-react';
+import { mensagemDeErro } from "@/lib/erros";
+
 import { useParams, useRouter } from 'next/navigation'; 
+import { QuestaoComOrdem, Simulado } from "@/lib/tipos";
+
 
 export default function ImprimirSimulado() {
   const params = useParams();
+
   const router = useRouter();
   const id = params?.id as string;
 
-  const [simulado, setSimulado] = useState<any>(null);
-  const [questoes, setQuestoes] = useState<any[]>([]);
+  const [simulado, setSimulado] = useState<Simulado | null>(null);
+  const [questoes, setQuestoes] = useState<QuestaoComOrdem[]>([]);
   const [loading, setLoading] = useState(true);
   const [erroDetalhado, setErroDetalhado] = useState<string | null>(null);
 
@@ -63,9 +68,9 @@ export default function ImprimirSimulado() {
             setQuestoes([]);
         }
 
-      } catch (error: any) {
+      } catch (error) {
         console.error("Erro no carregamento:", error);
-        setErroDetalhado(error.message || "Erro desconhecido ao carregar dados.");
+        setErroDetalhado(mensagemDeErro(error) || "Erro desconhecido ao carregar dados.");
       } finally {
         setLoading(false);
       }
@@ -137,7 +142,7 @@ export default function ImprimirSimulado() {
             questoes.map((questao, index) => {
               
               // Lógica para empacotar as colunas de A a E
-              let alternativas = [];
+              const alternativas: { letra: string; texto: string }[] = [];
               if (questao.alternativa_a) alternativas.push({ letra: 'A', texto: questao.alternativa_a });
               if (questao.alternativa_b) alternativas.push({ letra: 'B', texto: questao.alternativa_b });
               if (questao.alternativa_c) alternativas.push({ letra: 'C', texto: questao.alternativa_c });

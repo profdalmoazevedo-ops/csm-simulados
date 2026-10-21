@@ -3,10 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Users, Search, Award, Calendar, Eye, Loader2 } from 'lucide-react';
+
 import Link from 'next/link'; 
+import { AlunoAdmin } from "@/lib/tipos";
+
 
 export default function GestaoAlunos() {
-  const [alunos, setAlunos] = useState<any[]>([]);
+  const [alunos, setAlunos] = useState<AlunoAdmin[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState("");
 

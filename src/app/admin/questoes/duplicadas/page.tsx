@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { mensagemDeErro } from "@/lib/erros";
 
 interface QuestaoResumo {
   id: string;
@@ -59,8 +60,8 @@ export default function AuditoriaDuplicadasQuestoes() {
       }
 
       setRelatorio(data as RelatorioDuplicadasQuestoes);
-    } catch (err: any) {
-      setErro(err.message);
+    } catch (err) {
+      setErro(mensagemDeErro(err));
     } finally {
       setAnalisando(false);
     }
@@ -177,8 +178,8 @@ export default function AuditoriaDuplicadasQuestoes() {
         };
       });
       setSelecionados((prev) => prev.filter((s) => s !== id));
-    } catch (err: any) {
-      alert("Erro ao excluir questão: " + err.message);
+    } catch (err) {
+      alert("Erro ao excluir questão: " + mensagemDeErro(err));
     } finally {
       setExcluindo(false);
       setExcluindoId(null);
@@ -239,8 +240,8 @@ export default function AuditoriaDuplicadasQuestoes() {
         }
       }
       alert(mensagem);
-    } catch (err: any) {
-      alert("Erro ao excluir em lote: " + err.message);
+    } catch (err) {
+      alert("Erro ao excluir em lote: " + mensagemDeErro(err));
     } finally {
       setExcluindo(false);
     }

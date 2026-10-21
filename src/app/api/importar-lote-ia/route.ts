@@ -1,7 +1,27 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { mensagemDeErro } from "@/lib/erros";
 
 export const maxDuration = 60; 
+
+// Formato devolvido pela IA na extracao do lote (campos parciais).
+type QuestaoIA = {
+  banca?: string;
+  orgao?: string;
+  cargo?: string;
+  ano?: number | string;
+  tipo_questao?: string;
+  materia?: string;
+  topico?: string;
+  enunciado?: string;
+  alternativa_a?: string | null;
+  alternativa_b?: string | null;
+  alternativa_c?: string | null;
+  alternativa_d?: string | null;
+  alternativa_e?: string | null;
+  gabarito?: string;
+};
+
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -113,12 +133,12 @@ export async function POST(req: Request) {
 
       textoIAResposta = candidate.content.parts[0].text;
 
-    } catch (erroGemini: any) {
-      console.warn("⚠️ Acionando Groq:", erroGemini.message);
+    } catch (erroGemini) {
+      console.warn("⚠️ Acionando Groq:", mensagemDeErro(erroGemini));
       const groqApiKey = process.env.GROQ_API_KEY;
       
       if (!groqApiKey) {
-        throw new Error(`Falha Gemini: ${erroGemini.message} | GROQ_API_KEY ausente.`);
+        throw new Error(`Falha Gemini: ${mensagemDeErro(erroGemini)} | GROQ_API_KEY ausente.`);
       }
       
       const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -138,15 +158,15 @@ export async function POST(req: Request) {
 
       if (!groqResponse.ok) {
         const erroRealGroq = await groqResponse.text();
-        throw new Error(`Gemini erro: [${erroGemini.message}] // Groq erro: [${erroRealGroq}]`);
+        throw new Error(`Gemini erro: [${mensagemDeErro(erroGemini)}] // Groq erro: [${erroRealGroq}]`);
       }
       
       const groqData = await groqResponse.json();
       textoIAResposta = groqData.choices[0].message.content;
     }
 
-    const limparQuebrasDeLinha = (texto: string | null) => {
-      if (!texto) return texto;
+    const limparQuebrasDeLinha = (texto: string | null | undefined): string | null => {
+      if (!texto) return null;
       return String(texto)
         .replace(/\\n/g, '<br/>') 
         .replace(/\n/g, '<br/>')  
@@ -156,7 +176,7 @@ export async function POST(req: Request) {
     let jsonParseado;
     try {
        jsonParseado = JSON.parse(textoIAResposta);
-    } catch (parseError) {
+    } catch {
        console.error("Falha JSON:", textoIAResposta);
        return NextResponse.json({ error: "A IA gerou um formato inválido. Tente processar um lote menor." }, { status: 422 });
     }
@@ -164,7 +184,7 @@ export async function POST(req: Request) {
     const listaQuestoes = jsonParseado.questoes || jsonParseado;
 
     // 🚀 Fallbacks elegantes adicionados no Órgão e Cargo
-    const questoesPreparadas = listaQuestoes.map((q: any) => ({
+    const questoesPreparadas = (listaQuestoes as QuestaoIA[]).map((q) => ({
       banca: q.banca || "FGV",
       orgao: (q.orgao && q.orgao.trim() !== "") ? q.orgao : "Acervo Geral",
       cargo: (q.cargo && q.cargo.trim() !== "") ? q.cargo : "Diversos",
@@ -194,7 +214,7 @@ export async function POST(req: Request) {
       questoes_inseridas: questoesInseridas 
     });
 
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: mensagemDeErro(error) }, { status: 500 });
   }
 }

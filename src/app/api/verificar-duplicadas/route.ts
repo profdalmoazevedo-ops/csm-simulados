@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
       console.error("Erro ao buscar questões dos simulados:", error);
       return NextResponse.json({ error: "Erro ao consultar o banco de dados." }, { status: 500 });
     }
-    const raw = (data || []) as any[];
+    const raw = (data || []) as unknown as QuestaoVinculada[];
     const registros: QuestaoVinculada[] = raw.map((r) => ({
       simulado_id: r.simulado_id,
       questao_id: r.questao_id,

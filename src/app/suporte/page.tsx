@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { dispararAlertaSuporte } from "@/lib/telegram";
 import { uploadImagensSuporte, montarMensagemComImagens } from "@/lib/uploadImagem";
 import AnexadorImagem from "@/components/AnexadorImagem";
 import MensagemComImagens from "@/components/MensagemComImagens";
 import { LifeBuoy, MessageSquare, History, Send, CheckCircle2, AlertCircle, Trash2, RotateCcw, X } from "lucide-react";
+import { mensagemDeErro } from "@/lib/erros";
 
 interface Chamado {
   id: string;
@@ -126,8 +126,8 @@ export default function SuportePage() {
       setSucesso(true);
       setImagensNovas([]);
       setFormData(prev => ({ ...prev, mensagem: "", questao_id: "", categoria: "Acesso à Plataforma" }));
-    } catch (error: any) {
-      alert(`Erro ao enviar chamado: ${error.message}`);
+    } catch (error) {
+      alert(`Erro ao enviar chamado: ${mensagemDeErro(error)}`);
     } finally {
       setLoading(false);
     }
@@ -141,8 +141,8 @@ export default function SuportePage() {
       const { error } = await supabase.from("chamados_suporte").delete().eq("id", id);
       if (error) throw error;
       setMeusChamados(prev => prev.filter(c => c.id !== id));
-    } catch (err: any) {
-      alert(`Erro ao apagar: ${err.message}`);
+    } catch (err) {
+      alert(`Erro ao apagar: ${mensagemDeErro(err)}`);
     }
   };
 
@@ -167,8 +167,8 @@ export default function SuportePage() {
       setMeusChamados(prev => prev.map(c => c.id === chamado.id ? { ...c, status: 'pendente', mensagem: novaMensagem } : c));
       setReabrindoId(null);
       setMotivoReabertura("");
-    } catch (err: any) {
-      alert(`Erro ao reabrir: ${err.message}`);
+    } catch (err) {
+      alert(`Erro ao reabrir: ${mensagemDeErro(err)}`);
     } finally {
       setProcessandoAcao(false);
     }

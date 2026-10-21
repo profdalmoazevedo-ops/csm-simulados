@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Filter, Sliders, Loader2, Zap, X, PenTool, History, Play, Trash2, AlertCircle, CheckCircle2, Clock, Flame, BookX } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { TentativaResumo } from '@/lib/tipos';
+import { SimuladoHistorico, TentativaResumo } from '@/lib/tipos';
 
 const MultiSelectBuscavel = ({ label, placeholder, opcoes, valores, setValores, disabled = false }: { label: string, placeholder: string, opcoes: {label: string, value: string}[], valores: string[], setValores: (v: string[]) => void, disabled?: boolean }) => {
   const [aberto, setAberto] = useState(false);
@@ -102,7 +102,7 @@ export default function GeradorSimulados() {
 
   // Controle de Abas
   const [abaAtiva, setAbaAtiva] = useState<'gerar' | 'historico' | 'erros'>('gerar');
-  const [historicoSimulados, setHistoricoSimulados] = useState<any[]>([]);
+  const [historicoSimulados, setHistoricoSimulados] = useState<SimuladoHistorico[]>([]);
 
   // 🚀 NOVO ESTADO: Dados do Caderno de Erros
   const [estatisticasErros, setEstatisticasErros] = useState({
@@ -130,29 +130,18 @@ export default function GeradorSimulados() {
 
   // Lê a URL na montagem para abrir a aba certa (caso venha do painel de desempenho)
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const aba = urlParams.get('aba');
-      if (aba === 'erros' || aba === 'historico' || aba === 'gerar') {
-        setAbaAtiva(aba);
+    Promise.resolve().then(() => {
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const aba = urlParams.get('aba');
+        if (aba === 'erros' || aba === 'historico' || aba === 'gerar') {
+          setAbaAtiva(aba);
+        }
       }
-    }
+    });
   }, []);
 
-  // Recarrega opções e ids disponíveis sempre que qualquer filtro mudar
-  useEffect(() => {
-    obterFiltros();
-  }, [
-    incluirRespondidas,
-    bancasSelecionadas,
-    cargosSelecionados,
-    materiasSelecionadas,
-    topicosSelecionados,
-    anosSelecionados,
-    formatosSelecionados
-  ]);
-
-  async function obterFiltros() {
+  const obterFiltros = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       setCarregandoOpcoes(true);
@@ -193,12 +182,22 @@ export default function GeradorSimulados() {
     } finally {
       setCarregandoOpcoes(false);
     }
-  }
+  }, [
+    incluirRespondidas,
+    bancasSelecionadas,
+    cargosSelecionados,
+    materiasSelecionadas,
+    topicosSelecionados,
+    anosSelecionados,
+    formatosSelecionados
+  ]);
 
+  // Recarrega opções e ids disponíveis sempre que qualquer filtro mudar
   useEffect(() => {
-    if (abaAtiva === 'historico') carregarHistorico();
-    if (abaAtiva === 'erros') carregarDadosErros();
-  }, [abaAtiva]);
+    (async () => {
+      await obterFiltros();
+    })();
+  }, [obterFiltros]);
 
   async function carregarHistorico() {
     setLoadingHistorico(true);
@@ -277,6 +276,13 @@ export default function GeradorSimulados() {
     }
   }
 
+  useEffect(() => {
+    (async () => {
+      if (abaAtiva === 'historico') await carregarHistorico();
+      if (abaAtiva === 'erros') await carregarDadosErros();
+    })();
+  }, [abaAtiva]);
+
   async function excluirSimuladoHistorico(id: string) {
     if (!confirm("Tem certeza que deseja excluir este simulado? Seu progresso nele será perdido.")) return;
     
@@ -286,7 +292,7 @@ export default function GeradorSimulados() {
       
       localStorage.removeItem(`simulado_progresso_${id}`);
       setHistoricoSimulados(prev => prev.filter(s => s.id !== id));
-    } catch (error) {
+    } catch {
       alert("Erro ao excluir o simulado.");
     }
   }

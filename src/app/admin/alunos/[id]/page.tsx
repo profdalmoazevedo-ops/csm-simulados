@@ -5,13 +5,17 @@ import { supabase } from '@/lib/supabase';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, Target, Activity, Calendar, Eye, Award, Loader2, BookOpen } from 'lucide-react';
 import Link from 'next/link';
+import { AlunoAdmin, TentativaResumo } from "@/lib/tipos";
+
+
+
 
 export default function DetalhesAluno() {
   const params = useParams();
   const id = params?.id as string;
   
-  const [aluno, setAluno] = useState<any>(null);
-  const [historico, setHistorico] = useState<any[]>([]);
+  const [aluno, setAluno] = useState<AlunoAdmin | null>(null);
+  const [historico, setHistorico] = useState<TentativaResumo[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

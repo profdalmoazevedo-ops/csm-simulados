@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { ArrowLeft, Save, FileText, Settings, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { mensagemDeErro } from "@/lib/erros";
 
 export default function NovoSimuladoAdmin() {
   const router = useRouter();
@@ -62,9 +63,9 @@ export default function NovoSimuladoAdmin() {
       router.push(`/admin/simulados/editar/${data.id}`);
       router.refresh();
 
-    } catch (err: any) {
+    } catch (err) {
       console.error("Erro ao criar simulado:", err);
-      setErro(err.message || "Houve um erro ao criar a base do simulado no banco de dados.");
+      setErro(mensagemDeErro(err) || "Houve um erro ao criar a base do simulado no banco de dados.");
     } finally {
       setSalvando(false);
     }

@@ -15,7 +15,8 @@ export default function AutoLogout() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const ultimaAtividade = useRef<number>(Date.now());
+  const [inicioSessao] = useState(() => Date.now());
+  const ultimaAtividade = useRef<number>(inicioSessao);
   const avisoInicio = useRef<number | null>(null);
   const deslogando = useRef(false);
   const [avisoAtivo, setAvisoAtivo] = useState(false);
@@ -86,7 +87,7 @@ export default function AutoLogout() {
       EVENTOS.forEach(ev => window.removeEventListener(ev, registrarAtividade));
       clearInterval(intervalo);
     };
-  }, [session, pathname]);
+  }, [session, pathname, router]);
 
   if (!session || !avisoAtivo) return null;
 

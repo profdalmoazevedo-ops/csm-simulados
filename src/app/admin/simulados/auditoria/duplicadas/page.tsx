@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
+import { mensagemDeErro } from "@/lib/erros";
 
 interface Simulado {
   id: string;
@@ -85,8 +86,8 @@ export default function RelatorioDuplicadas() {
       }
 
       setRelatorio(data as RelatorioDuplicadas);
-    } catch (err: any) {
-      setErro(err.message);
+    } catch (err) {
+      setErro(mensagemDeErro(err));
     } finally {
       setAnalisando(false);
     }

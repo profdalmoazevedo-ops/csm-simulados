@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from "@/lib/supabase";
 import { useRouter } from 'next/navigation';
 import { User, Mail, Lock, Save, AlertCircle, CheckCircle2, Loader2, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { mensagemDeErro } from "@/lib/erros";
 
 export default function PerfilAlunoPage() {
   const router = useRouter();
@@ -24,11 +25,8 @@ export default function PerfilAlunoPage() {
   const [mensagemDados, setMensagemDados] = useState<{ tipo: 'sucesso' | 'erro' | 'info', texto: string } | null>(null);
   const [mensagemSenha, setMensagemSenha] = useState<{ tipo: 'sucesso' | 'erro', texto: string } | null>(null);
 
-  useEffect(() => {
-    carregarPerfil();
-  }, []);
 
-  async function carregarPerfil() {
+  const carregarPerfil = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
@@ -39,7 +37,13 @@ export default function PerfilAlunoPage() {
     setEmail(user.email || '');
     setEmailOriginal(user.email || '');
     setNome(user.user_metadata?.full_name || user.user_metadata?.nome || '');
-  }
+  }, [router]);
+
+  useEffect(() => {
+    (async () => {
+      await carregarPerfil();
+    })();
+  }, [carregarPerfil]);
 
   // ========================== ATUALIZAR DADOS (NOME E E-MAIL) ==========================
   async function handleAtualizarDados(e: React.FormEvent) {
@@ -48,7 +52,7 @@ export default function PerfilAlunoPage() {
     setMensagemDados(null);
 
     try {
-      const updates: any = {
+      const updates: { data?: { full_name: string }; email?: string } = {
         data: { full_name: nome } 
       };
 
@@ -70,8 +74,8 @@ export default function PerfilAlunoPage() {
         setMensagemDados({ tipo: 'sucesso', texto: 'Dados atualizados com sucesso!' });
       }
 
-    } catch (error: any) {
-      setMensagemDados({ tipo: 'erro', texto: error.message || 'Erro ao atualizar dados.' });
+    } catch (error) {
+      setMensagemDados({ tipo: 'erro', texto: mensagemDeErro(error) || 'Erro ao atualizar dados.' });
     } finally {
       setLoadingDados(false);
     }
@@ -106,8 +110,8 @@ export default function PerfilAlunoPage() {
       setNovaSenha('');
       setConfirmarSenha('');
 
-    } catch (error: any) {
-      setMensagemSenha({ tipo: 'erro', texto: error.message || 'Erro ao alterar a senha.' });
+    } catch (error) {
+      setMensagemSenha({ tipo: 'erro', texto: mensagemDeErro(error) || 'Erro ao alterar a senha.' });
     } finally {
       setLoadingSenha(false);
     }

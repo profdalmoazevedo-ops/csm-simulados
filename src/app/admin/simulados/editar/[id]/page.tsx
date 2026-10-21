@@ -1,7 +1,9 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'next/navigation';
 import { supabase } from "@/lib/supabase";
+import { mensagemDeErro } from "@/lib/erros";
+import { normalizarVinculos, QuestaoResumoTabela, VinculoNormalizado } from "@/lib/tipos";
 import { 
   ArrowLeft, Save, FileText, ListChecks, Search, 
   Plus, Trash2, BookOpen, ChevronDown, ChevronUp, 
@@ -10,19 +12,18 @@ import {
 import Link from 'next/link';
 
 export default function EditarSimuladoAdmin() {
-  const router = useRouter();
   const params = useParams();
   const idSimulado = params?.id as string;
 
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
-  const [erro, setErro] = useState("");
+  const [, setErro] = useState("");
   const [abaAtiva, setAbaAtiva] = useState<'questoes' | 'config'>('questoes');
 
   // Estados das Questões e Buscas
-  const [questoesVinculadas, setQuestoesVinculadas] = useState<any[]>([]);
+  const [questoesVinculadas, setQuestoesVinculadas] = useState<VinculoNormalizado[]>([]);
   const [busca, setBusca] = useState("");
-  const [resultadosBusca, setResultadosBusca] = useState<any[]>([]);
+  const [resultadosBusca, setResultadosBusca] = useState<QuestaoResumoTabela[]>([]);
   const [buscando, setBuscando] = useState(false);
   
   // Estado: Armazena IDs que o professor pediu para esconder na sessão atual
@@ -43,13 +44,7 @@ export default function EditarSimuladoAdmin() {
     regra_subtracao: false,
   });
 
-  useEffect(() => {
-    if (!idSimulado) return;
-    carregarDadosSimulado();
-    carregarTopicosUnicos();
-  }, [idSimulado]);
-
-  async function carregarTopicosUnicos() {
+  const carregarTopicosUnicos = useCallback(async () => {
     try {
       const { data } = await supabase.from('questoes').select('topico');
       if (data) {
@@ -59,9 +54,9 @@ export default function EditarSimuladoAdmin() {
     } catch (err) {
       console.error("Erro ao carregar tópicos:", err);
     }
-  }
+  }, []);
 
-  async function carregarDadosSimulado() {
+  const carregarDadosSimulado = useCallback(async () => {
     setLoading(true);
     try {
       const { data: simData, error: simError } = await supabase
@@ -93,13 +88,21 @@ export default function EditarSimuladoAdmin() {
         .order('ordem', { ascending: true });
 
       if (vincError) throw vincError;
-      setQuestoesVinculadas(vinculadas || []);
-    } catch (err: any) {
+      setQuestoesVinculadas(normalizarVinculos(vinculadas || []));
+    } catch {
       setErro("Falha ao carregar os dados do simulado.");
     } finally {
       setLoading(false);
     }
-  }
+  }, [idSimulado]);
+
+  useEffect(() => {
+    if (!idSimulado) return;
+    (async () => {
+      carregarDadosSimulado();
+      carregarTopicosUnicos();
+    })();
+  }, [idSimulado, carregarDadosSimulado, carregarTopicosUnicos]);
 
   async function pesquisarQuestoesNoBanco() {
     setBuscando(true);
@@ -138,7 +141,7 @@ export default function EditarSimuladoAdmin() {
       
       if (error) throw error;
       
-      setResultadosBusca(data || []);
+      setResultadosBusca((data || []) as QuestaoResumoTabela[]);
     } catch (err) {
       console.error("Erro na busca:", err);
     } finally {
@@ -146,7 +149,7 @@ export default function EditarSimuladoAdmin() {
     }
   }
 
-  async function adicionarQuestao(questao: any) {
+  async function adicionarQuestao(questao: QuestaoResumoTabela) {
     try {
       const novaOrdem = questoesVinculadas.length + 1;
       const { data, error } = await supabase
@@ -157,10 +160,10 @@ export default function EditarSimuladoAdmin() {
 
       if (error) throw error;
 
-      setQuestoesVinculadas([...questoesVinculadas, data]);
+      if (data) setQuestoesVinculadas([...questoesVinculadas, data as unknown as VinculoNormalizado]);
       setResultadosBusca(resultadosBusca.filter(r => r.id !== questao.id));
-    } catch (err: any) {
-      alert("Erro ao vincular questão: " + err.message);
+    } catch (err) {
+      alert("Erro ao vincular questão: " + mensagemDeErro(err));
     }
   }
 
@@ -180,8 +183,8 @@ export default function EditarSimuladoAdmin() {
       
       setQuestoesVinculadas(prev => prev.filter(q => q.id !== idRelacionamento));
       await pesquisarQuestoesNoBanco(); 
-    } catch (err: any) {
-      alert("Erro ao remover: " + err.message);
+    } catch (err) {
+      alert("Erro ao remover: " + mensagemDeErro(err));
     }
   }
 

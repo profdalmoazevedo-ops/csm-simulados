@@ -2,6 +2,8 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { mensagemDeErro } from "@/lib/erros";
+import { AlternativaKey, Questao } from "@/lib/tipos";
 import { ArrowLeft, Save, BookOpen, AlertCircle, CheckCircle2, Wand2, RefreshCcw, Info, Layers } from 'lucide-react';
 import Link from 'next/link';
 
@@ -72,7 +74,7 @@ export default function NovaQuestaoAdmin() {
         try {
           const errorJson = JSON.parse(textResponse);
           mensagemErro = errorJson.error || mensagemErro;
-        } catch (e) {
+        } catch {
           if (response.status === 504) {
             mensagemErro = "A inteligência artificial demorou muito para responder (Timeout). Tente novamente.";
           } else {
@@ -110,9 +112,9 @@ export default function NovaQuestaoAdmin() {
 
       setModo('manual');
       setTextoBruto("");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Falha ao integrar IA:", err);
-      setErro(err.message || "Conexão com o motor de inteligência artificial falhou.");
+      setErro(mensagemDeErro(err) || "Conexão com o motor de inteligência artificial falhou.");
     } finally {
       setSalvando(false);
     }
@@ -137,7 +139,7 @@ export default function NovaQuestaoAdmin() {
         lotesTexto.push(blocos.slice(i, i + tamanhoDoLote).join("\n\n"));
       }
 
-      let questoesSalvasTotais: any[] = [];
+      let questoesSalvasTotais: Questao[] = [];
       
       // 🚀 Movemos o utilitário de pausa para o topo para usá-lo em ambas as fases
       const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -159,7 +161,7 @@ export default function NovaQuestaoAdmin() {
           try {
             const errorJson = JSON.parse(textResponse);
             mensagemErro = errorJson.error || mensagemErro;
-          } catch (e) {
+          } catch {
             if (response.status === 504) {
               mensagemErro = `O pacote ${i + 1} demorou muito para responder (Timeout da Vercel). Tente enviar as questões restantes em um novo lote.`;
             } else {
@@ -205,9 +207,9 @@ export default function NovaQuestaoAdmin() {
         router.refresh();
       }, 3500);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Falha no lote:", err);
-      setErro(err.message || "Erro inesperado ao processar o lote.");
+      setErro(mensagemDeErro(err) || "Erro inesperado ao processar o lote.");
       setFaseLote('ocioso');
       setBarraLote(0);
     } finally {
@@ -247,9 +249,9 @@ export default function NovaQuestaoAdmin() {
       const comentarioLimpoParaEdicao = data.comentario.replace(/<br\s*\/?>/gi, '\n');
       setFormData(prev => ({ ...prev, comentario_gabarito: comentarioLimpoParaEdicao }));
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao gerar comentário:", err);
-      setErro(err.message || "Não foi possível gerar o comentário agora.");
+      setErro(mensagemDeErro(err) || "Não foi possível gerar o comentário agora.");
     } finally {
       setGerandoComentario(false);
     }
@@ -289,7 +291,7 @@ export default function NovaQuestaoAdmin() {
         return texto.trim().toUpperCase();
       };
 
-      const insertData: any = {
+      const insertData: Partial<Questao> = {
         // Aplica a padronização antes de inserir
         banca: padronizarSigla(formData.banca),
         orgao: padronizarSigla(formData.orgao), 
@@ -315,9 +317,9 @@ export default function NovaQuestaoAdmin() {
       router.push('/admin/questoes');
       router.refresh();
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao salvar questão:", err);
-      setErro(err.message || "Houve um erro ao salvar a questão no banco de dados.");
+      setErro(mensagemDeErro(err) || "Houve um erro ao salvar a questão no banco de dados.");
     } finally {
       setSalvando(false);
     }
@@ -507,7 +509,7 @@ export default function NovaQuestaoAdmin() {
                 {['a', 'b', 'c', 'd', 'e'].map((letra) => (
                   <div key={letra} className="flex gap-3 items-start">
                     <span className="w-8 h-8 shrink-0 bg-white/5 border border-white/10 text-zinc-400 text-xs font-bold rounded flex items-center justify-center uppercase mt-1">{letra}</span>
-                    <textarea name={`alternativa_${letra}`} value={(formData as any)[`alternativa_${letra}`]} onChange={handleChange} rows={2} required={letra === 'a' || letra === 'b'}
+                    <textarea name={`alternativa_${letra}`} value={formData[`alternativa_${letra}` as AlternativaKey]} onChange={handleChange} rows={2} required={letra === 'a' || letra === 'b'}
                       className="w-full text-sm bg-[#09090b] border border-white/10 text-zinc-200 rounded-lg px-4 py-2 focus:border-blue-500 outline-none transition-all resize-y" />
                   </div>
                 ))}
