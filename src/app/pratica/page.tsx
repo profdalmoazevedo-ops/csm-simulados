@@ -423,6 +423,9 @@ export default function BancoDeQuestoes() {
                 const jaRespondida = !!statusResposta;
                 const selecionada = selecoes[questao.id];
                 const gabaritoCorreto = questao.gabarito.toLowerCase();
+                // Certo/Errado não usa alternativa_a..e (ficam nulas por convenção):
+                // o gabarito é "C" ou "E" e a marcação usa 'c'/'e' em minúsculas.
+                const isCertoErrado = questao.tipo_questao === 'certo_errado';
 
                 return (
                   <div key={questao.id} className="bg-[#131c2f]/20 border border-white/5 p-6 md:p-8 rounded-3xl">
@@ -453,7 +456,57 @@ export default function BancoDeQuestoes() {
                     </div>
 
                     <div className="space-y-3">
-                    {['a', 'b', 'c', 'd', 'e'].map((letra) => {
+                    {isCertoErrado ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {([
+                          { letra: 'c', rotulo: 'Certo' },
+                          { letra: 'e', rotulo: 'Errado' }
+                        ] as const).map(({ letra, rotulo }) => {
+                          let estiloBotao = "border-white/5 bg-[#09090b] hover:border-white/20 text-zinc-400";
+                          let estiloLetra = "border-white/10 text-zinc-400";
+                          let mostrarIcone = false;
+                          let iconeCorreto = false;
+
+                          if (jaRespondida) {
+                            if (letra === gabaritoCorreto) {
+                              estiloBotao = "border-emerald-500/50 bg-emerald-500/10 text-emerald-500";
+                              estiloLetra = "border-emerald-500 bg-emerald-500 text-black";
+                              mostrarIcone = true;
+                              iconeCorreto = true;
+                            } else if (letra === statusResposta.marcada && !statusResposta.correta) {
+                              estiloBotao = "border-red-500/50 bg-red-500/10 text-red-500";
+                              estiloLetra = "border-red-500 bg-red-500 text-black";
+                              mostrarIcone = true;
+                            } else {
+                              estiloBotao = "border-white/5 bg-[#09090b] opacity-40 cursor-default text-zinc-600";
+                              estiloLetra = "border-white/5 text-zinc-700";
+                            }
+                          } else if (selecionada === letra) {
+                            estiloBotao = "border-zinc-400/50 bg-zinc-800/50 text-zinc-200";
+                            estiloLetra = "border-zinc-400 bg-zinc-400 text-black";
+                          }
+
+                          return (
+                            <button
+                              key={letra}
+                              onClick={() => selecionarAlternativa(questao.id, letra)}
+                              disabled={jaRespondida}
+                              className={`w-full p-6 rounded-2xl border transition-all flex flex-col items-center justify-center gap-3 ${estiloBotao}`}
+                            >
+                              <span className={`w-12 h-12 rounded-full border flex items-center justify-center text-lg font-black uppercase transition-colors ${estiloLetra}`}>
+                                {mostrarIcone ? (
+                                  iconeCorreto ? <CheckCircle2 className="w-6 h-6" /> : <XCircle className="w-6 h-6" />
+                                ) : (
+                                  letra
+                                )}
+                              </span>
+                              <span className="text-sm font-bold uppercase tracking-widest">{rotulo}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                    ['a', 'b', 'c', 'd', 'e'].map((letra) => {
   const alternativaTexto = questao[`alternativa_${letra}` as AlternativaKey];
   
   // Ignora se for vazio, se for o texto "null" ou se tiver apenas espaços
@@ -497,7 +550,8 @@ export default function BancoDeQuestoes() {
                             <span className="text-sm mt-1.5">{alternativaTexto}</span>
                           </button>
                         );
-                      })}
+                      })
+                    )}
                     </div>
 
                     {!jaRespondida && (
