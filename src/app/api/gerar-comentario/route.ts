@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { mensagemDeErro } from "@/lib/erros";
+import { normalizarQuebras } from "@/lib/texto";
 
 export const maxDuration = 60;
 
@@ -148,8 +149,9 @@ export async function POST(request: Request) {
       responseText = groqData.choices[0].message.content;
     }
 
-    // 🚀 A VACINA: Transforma as quebras de linha em HTML para o banco
-    responseText = responseText.replace(/\n/g, '<br/>');
+    // Texto puro com quebras reais: o banco guarda "\n" e as telas renderizam
+    // com "whitespace-pre-wrap". Nunca gravar <br/> neste campo.
+    responseText = normalizarQuebras(responseText);
 
     // 5. Retorna para o Frontend
     return NextResponse.json({ 

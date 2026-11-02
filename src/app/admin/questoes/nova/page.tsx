@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { mensagemDeErro } from "@/lib/erros";
 import { AlternativaKey, Questao } from "@/lib/tipos";
+import { normalizarQuebras } from "@/lib/texto";
 import { ArrowLeft, Save, BookOpen, AlertCircle, CheckCircle2, Wand2, RefreshCcw, Info, Layers } from 'lucide-react';
 import Link from 'next/link';
 
@@ -100,14 +101,14 @@ export default function NovaQuestaoAdmin() {
         tipo_questao: qIA.tipo_questao || 'multipla_escolha',
         materia: qIA.materia || '',
         topico: qIA.topico || '',
-        enunciado: qIA.enunciado || '',
-        alternativa_a: qIA.alternativa_a || '',
-        alternativa_b: qIA.alternativa_b || '',
-        alternativa_c: qIA.alternativa_c || '',
-        alternativa_d: qIA.alternativa_d || '',
-        alternativa_e: qIA.alternativa_e || '',
+        enunciado: normalizarQuebras(qIA.enunciado),
+        alternativa_a: normalizarQuebras(qIA.alternativa_a),
+        alternativa_b: normalizarQuebras(qIA.alternativa_b),
+        alternativa_c: normalizarQuebras(qIA.alternativa_c),
+        alternativa_d: normalizarQuebras(qIA.alternativa_d),
+        alternativa_e: normalizarQuebras(qIA.alternativa_e),
         gabarito: qIA.gabarito || 'A',
-        comentario_gabarito: qIA.comentario_gabarito ? qIA.comentario_gabarito.replace(/<br\s*\/?>/gi, '\n') : ''
+        comentario_gabarito: normalizarQuebras(qIA.comentario_gabarito)
       });
 
       setModo('manual');
@@ -246,7 +247,7 @@ export default function NovaQuestaoAdmin() {
         throw new Error(data.error || "Falha ao gerar o novo comentário.");
       }
 
-      const comentarioLimpoParaEdicao = data.comentario.replace(/<br\s*\/?>/gi, '\n');
+      const comentarioLimpoParaEdicao = normalizarQuebras(data.comentario);
       setFormData(prev => ({ ...prev, comentario_gabarito: comentarioLimpoParaEdicao }));
 
     } catch (err: unknown) {
@@ -275,9 +276,9 @@ export default function NovaQuestaoAdmin() {
     }
 
     try {
-      const comentarioProntoProBanco = formData.comentario_gabarito
-        ? formData.comentario_gabarito.replace(/\n/g, '<br/>')
-        : '';
+      // Texto puro com quebras reais: o banco guarda "\n" e as telas renderizam
+      // com "whitespace-pre-wrap". Nada de <br/> aqui.
+      const comentarioProntoProBanco = normalizarQuebras(formData.comentario_gabarito).trim();
 
       // 🚀 FUNÇÃO DE PADRONIZAÇÃO (TÍTULO E CAIXA ALTA)
       const padronizarTitulo = (texto: string) => {
@@ -301,14 +302,14 @@ export default function NovaQuestaoAdmin() {
         topico: padronizarTitulo(formData.topico),
         
         tipo_questao: formData.tipo_questao,
-        enunciado: formData.enunciado,
+        enunciado: normalizarQuebras(formData.enunciado).trim(),
         gabarito: formData.gabarito,
         comentario_gabarito: comentarioProntoProBanco,
-        alternativa_a: formData.tipo_questao === 'multipla_escolha' ? formData.alternativa_a : null,
-        alternativa_b: formData.tipo_questao === 'multipla_escolha' ? formData.alternativa_b : null,
-        alternativa_c: formData.tipo_questao === 'multipla_escolha' ? formData.alternativa_c : null,
-        alternativa_d: formData.tipo_questao === 'multipla_escolha' ? formData.alternativa_d : null,
-        alternativa_e: formData.tipo_questao === 'multipla_escolha' ? formData.alternativa_e : null,
+        alternativa_a: formData.tipo_questao === 'multipla_escolha' ? normalizarQuebras(formData.alternativa_a).trim() : null,
+        alternativa_b: formData.tipo_questao === 'multipla_escolha' ? normalizarQuebras(formData.alternativa_b).trim() : null,
+        alternativa_c: formData.tipo_questao === 'multipla_escolha' ? normalizarQuebras(formData.alternativa_c).trim() : null,
+        alternativa_d: formData.tipo_questao === 'multipla_escolha' ? normalizarQuebras(formData.alternativa_d).trim() : null,
+        alternativa_e: formData.tipo_questao === 'multipla_escolha' ? normalizarQuebras(formData.alternativa_e).trim() : null,
       };
 
       const { error } = await supabase.from('questoes').insert([insertData]);

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { ehCampoFaltante } from '@/lib/metadados';
+import { previaTexto } from '@/lib/texto';
 import { Plus, Search, Edit, Trash2, Database, BookOpen, AlertCircle, Filter, Wand2, RefreshCcw, ChevronDown, ChevronsDownUp, ChevronsUpDown, CopyCheck } from 'lucide-react';
 import Link from 'next/link';
 import { mensagemDeErro } from "@/lib/erros";
@@ -470,7 +471,7 @@ export default function BancoDeQuestoesAdmin() {
                               <div key={questao.id} className="px-5 py-4 flex items-start justify-between gap-4 hover:bg-white/5 transition-colors">
                                 <div className="flex-1 min-w-0">
                                   <div className="text-zinc-300 line-clamp-2 leading-relaxed text-sm">
-                                    {questao.enunciado ? questao.enunciado.replace(/<[^>]+>/g, '') : "Enunciado vazio"}
+                                    {previaTexto(questao.enunciado) || "Enunciado vazio"}
                                   </div>
                                 </div>
                                 <div className="flex gap-2 shrink-0">

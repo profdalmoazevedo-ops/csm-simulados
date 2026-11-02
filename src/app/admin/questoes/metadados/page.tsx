@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { ehCampoFaltante } from '@/lib/metadados';
+import { previaTexto } from '@/lib/texto';
 import { AlertCircle, ArrowLeft, CheckCircle2, ChevronDown, ExternalLink, Loader2, RefreshCcw, Search } from 'lucide-react';
 
 type QuestaoMeta = {
@@ -55,8 +56,8 @@ type SugestaoResposta = {
 
 const TAMANHO_LOTE = 3;
 
-const limparHtml = (texto: string | null) =>
-  (texto || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+// A prévia elimina tags legadas e colapsa espaços, sem colar palavras.
+const limparHtml = (texto: string | null) => previaTexto(texto);
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 

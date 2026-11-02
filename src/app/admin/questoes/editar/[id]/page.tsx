@@ -6,6 +6,7 @@ import { ArrowLeft, Save, BookOpen, AlertCircle, CheckCircle2, Wand2, Info } fro
 import Link from 'next/link';
 import { mensagemDeErro } from "@/lib/erros";
 import { AlternativaKey, Questao } from "@/lib/tipos";
+import { normalizarQuebras } from "@/lib/texto";
 
 
 
@@ -54,14 +55,14 @@ export default function EditarQuestaoAdmin() {
             tipo_questao: data.tipo_questao || 'multipla_escolha',
             materia: data.materia || '',
             topico: data.topico || '',
-            enunciado: data.enunciado || '',
-            alternativa_a: data.alternativa_a || '',
-            alternativa_b: data.alternativa_b || '',
-            alternativa_c: data.alternativa_c || '',
-            alternativa_d: data.alternativa_d || '',
-            alternativa_e: data.alternativa_e || '',
+            enunciado: normalizarQuebras(data.enunciado),
+            alternativa_a: normalizarQuebras(data.alternativa_a),
+            alternativa_b: normalizarQuebras(data.alternativa_b),
+            alternativa_c: normalizarQuebras(data.alternativa_c),
+            alternativa_d: normalizarQuebras(data.alternativa_d),
+            alternativa_e: normalizarQuebras(data.alternativa_e),
             gabarito: data.gabarito || 'A',
-            comentario_gabarito: data.comentario_gabarito ? data.comentario_gabarito.replace(/<br\s*\/?>/gi, '\n') : ''
+            comentario_gabarito: normalizarQuebras(data.comentario_gabarito)
           });
         }
       } catch (err) {
@@ -110,7 +111,7 @@ export default function EditarQuestaoAdmin() {
       const data = await response.json();
       if (!response.ok || !data.comentario) throw new Error(data.error || "Falha ao gerar o novo comentário.");
 
-      const comentarioLimpoParaEdicao = data.comentario.replace(/<br\s*\/?>/gi, '\n');
+      const comentarioLimpoParaEdicao = normalizarQuebras(data.comentario);
       setFormData(prev => ({ ...prev, comentario_gabarito: comentarioLimpoParaEdicao }));
       alert("✅ Comentário gerado com sucesso! Não esqueça de clicar em 'Atualizar Questão' no final da página para salvar no banco.");
     } catch (err) {
@@ -126,7 +127,9 @@ export default function EditarQuestaoAdmin() {
     setErro("");
 
     try {
-      const comentarioProntoProBanco = formData.comentario_gabarito ? formData.comentario_gabarito.replace(/\n/g, '<br/>') : '';
+      // Texto puro com quebras reais: o banco guarda "\n" e as telas renderizam
+      // com "whitespace-pre-wrap". Nada de <br/> aqui.
+      const comentarioProntoProBanco = normalizarQuebras(formData.comentario_gabarito).trim();
 
       const updateData: Partial<Questao> = {
         banca: formData.banca,
@@ -136,14 +139,14 @@ export default function EditarQuestaoAdmin() {
         tipo_questao: formData.tipo_questao,
         materia: formData.materia,
         topico: formData.topico,
-        enunciado: formData.enunciado,
+        enunciado: normalizarQuebras(formData.enunciado).trim(),
         gabarito: formData.gabarito,
         comentario_gabarito: comentarioProntoProBanco,
-        alternativa_a: formData.tipo_questao === 'multipla_escolha' ? formData.alternativa_a : null,
-        alternativa_b: formData.tipo_questao === 'multipla_escolha' ? formData.alternativa_b : null,
-        alternativa_c: formData.tipo_questao === 'multipla_escolha' ? formData.alternativa_c : null,
-        alternativa_d: formData.tipo_questao === 'multipla_escolha' ? formData.alternativa_d : null,
-        alternativa_e: formData.tipo_questao === 'multipla_escolha' ? formData.alternativa_e : null,
+        alternativa_a: formData.tipo_questao === 'multipla_escolha' ? normalizarQuebras(formData.alternativa_a).trim() : null,
+        alternativa_b: formData.tipo_questao === 'multipla_escolha' ? normalizarQuebras(formData.alternativa_b).trim() : null,
+        alternativa_c: formData.tipo_questao === 'multipla_escolha' ? normalizarQuebras(formData.alternativa_c).trim() : null,
+        alternativa_d: formData.tipo_questao === 'multipla_escolha' ? normalizarQuebras(formData.alternativa_d).trim() : null,
+        alternativa_e: formData.tipo_questao === 'multipla_escolha' ? normalizarQuebras(formData.alternativa_e).trim() : null,
       };
 
       const { error } = await supabase.from('questoes').update(updateData).eq('id', id);

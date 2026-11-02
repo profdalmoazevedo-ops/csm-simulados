@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { mensagemDeErro } from "@/lib/erros";
+import { normalizarQuebras } from "@/lib/texto";
 
 export const maxDuration = 60; 
 
@@ -52,6 +53,7 @@ export async function POST(req: Request) {
         - ÓRGÃO: Busque o texto logo após a tag "Órgão:" no cabeçalho.
         - CARGO: Geralmente é a última informação da string "Prova:", localizada após o último hífen. 
         - Extraia também "banca", "materia", "topico" e "ano" (o ano da prova, ex: 2026). Se o órgão ou cargo não estiverem no texto, retorne "Acervo Geral" para órgão e "Diversos" para cargo. Se o ano não estiver no texto, retorne 2026.
+    6. QUEBRAS DE LINHA: preserve a separação entre parágrafos e itens do texto original usando quebras reais de linha (\n). É PROIBIDO usar tags HTML como <br/>, <p> ou <b>.
 
     IMPORTANTE: PROCESSE TODAS AS QUESTÕES PRESENTES NO TEXTO, NÃO OMITE NENHUMA. NUNCA misture as alternativas dentro do campo do enunciado.
 
@@ -165,12 +167,11 @@ export async function POST(req: Request) {
       textoIAResposta = groqData.choices[0].message.content;
     }
 
-    const limparQuebrasDeLinha = (texto: string | null | undefined): string | null => {
+    // Texto puro com quebras reais ("\n"). A IA às vezes devolve <br/>; a
+    // normalização converte para quebra de linha para não gravar HTML no banco.
+    const normalizarCampo = (texto: string | null | undefined): string | null => {
       if (!texto) return null;
-      return String(texto)
-        .replace(/\\n/g, '<br/>') 
-        .replace(/\n/g, '<br/>')  
-        .trim();
+      return normalizarQuebras(String(texto)).trim() || null;
     };
 
     let jsonParseado;
@@ -192,12 +193,12 @@ export async function POST(req: Request) {
       tipo_questao: q.tipo_questao,
       materia: q.materia || "Direito",
       topico: q.topico || "Assunto",
-      enunciado: limparQuebrasDeLinha(q.enunciado) || "",
-      alternativa_a: limparQuebrasDeLinha(q.alternativa_a) || null,
-      alternativa_b: limparQuebrasDeLinha(q.alternativa_b) || null,
-      alternativa_c: limparQuebrasDeLinha(q.alternativa_c) || null,
-      alternativa_d: limparQuebrasDeLinha(q.alternativa_d) || null,
-      alternativa_e: limparQuebrasDeLinha(q.alternativa_e) || null,
+      enunciado: normalizarCampo(q.enunciado) || "",
+      alternativa_a: normalizarCampo(q.alternativa_a) || null,
+      alternativa_b: normalizarCampo(q.alternativa_b) || null,
+      alternativa_c: normalizarCampo(q.alternativa_c) || null,
+      alternativa_d: normalizarCampo(q.alternativa_d) || null,
+      alternativa_e: normalizarCampo(q.alternativa_e) || null,
       gabarito: String(q.gabarito || "A").trim().toUpperCase(),
       comentario_gabarito: "" 
     }));

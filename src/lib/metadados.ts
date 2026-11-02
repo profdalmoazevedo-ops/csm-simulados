@@ -1,3 +1,5 @@
+import { previaTexto } from "./texto";
+
 const VALORES_FALTANTES = new Set([
   'sem cargo definido',
   'sem banca definida',
@@ -21,7 +23,7 @@ export function ehCampoFaltante(valor: string | null | undefined): boolean {
 }
 
 export function extrairTrechoBusca(enunciado: string | null | undefined, maxLen = 100): string {
-  const limpo = (enunciado || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const limpo = previaTexto(enunciado);
   if (limpo.length <= maxLen) return limpo;
   const corte = limpo.lastIndexOf(' ', maxLen);
   return corte > 40 ? limpo.slice(0, corte) : limpo.slice(0, maxLen);

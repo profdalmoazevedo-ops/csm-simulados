@@ -148,7 +148,7 @@ export default function AdminAtualizarQuestoes() {
               <span className="bg-white/5 px-2 py-1 rounded">{questaoAtual.materia}</span>
             </div>
 
-            <div className="text-zinc-200 text-sm leading-relaxed bg-black/20 p-6 rounded-xl border border-white/5 h-64 overflow-y-auto">
+            <div className="text-zinc-200 text-sm leading-relaxed bg-black/20 p-6 rounded-xl border border-white/5 h-64 overflow-y-auto whitespace-pre-wrap">
               {questaoAtual.enunciado}
             </div>
 

@@ -30,12 +30,12 @@ Gotcha: `src/app/suporte/page.tsx` also reads `NEXT_PUBLIC_BOT_SUPORTE_TOKEN` an
 ## AI pipeline (API routes all cascade Gemini → Groq fallback)
 - `/api/importar-ia` — parses pasted question text into JSON, no DB write.
 - `/api/importar-lote-ia` — bulk-imports into `questoes`, with hardcoded fallbacks `banca="FGV"`, `orgao="Acervo Geral"`, `cargo="Diversos"`. Exports `maxDuration = 60`.
-- `/api/gerar-comentario` — generates the gabarito explanation; returns HTML with `<br/>` line breaks, not `\n`.
+- `/api/gerar-comentario` — generates the gabarito explanation; returns plain text with real line breaks (`\n`), not HTML.
 - Groq fallback model is `openai/gpt-oss-120b`. Googles' Gemini endpoint is called directly via REST (raw `fetch`), not an SDK.
 
 ## Data conventions
 - `questoes` schema (verify table before assuming): `banca`, `orgao`, `cargo`, `materia`, `topico`, `tipo_questao` (`multipla_escolha` | `certo_errado`), `enunciado`, `alternativa_a`..`alternativa_e` (nullable), `gabarito`, `comentario_gabarito`. A column `ano` (int4) also exists.
-- Rich text (enunciado/comentario) is stored with `<br/>` line breaks — convert `\n` → `<br/>` when writing.
+- Rich text (enunciado/alternativas/comentario) is stored as **plain text with real `\n` line breaks** — never write `<br/>` or other HTML. Render with `whitespace-pre-wrap` (Tailwind), NOT with `dangerouslySetInnerHTML`. Use `normalizarQuebras()` from `src/lib/texto.ts` when saving (tolerates legacy `<br/>`) and `previaTexto()` for one-line previews in listagens.
 - Other tables seen in use: `notificacoes`, `notificacoes_lidas`, `chamados_suporte`, `simulados` + question join table.
 
 ## Performance layer (require `supabase/migrations/20260913_performance.sql`)
@@ -51,6 +51,7 @@ A manual migration must be run in the Supabase SQL Editor before the pages below
 - `npm run lint` (eslint flat config in `eslint.config.mjs`)
 - No typecheck or test scripts are configured — run `npx tsc --noEmit` to typecheck. There is no test suite.
 - `npm run enriquecer-metadados` — local CLI (roda na máquina do usuário, IP residencial): busca cada questão faltante de cargo/órgão no Gran Cursos Questões e grava com `SUPABASE_SERVICE_ROLE_KEY` de `.env.local`. Flags: `--dry-run`, `--limite N`. A busca vai ao DuckDuckGo; quando o DDG bloqueia o IP (rate-limit), o script cai automaticamente no leitor `r.jina.ai`, que busca do lado do Jina e devolve os mesmos links. A leitura da página da questão também usa `r.jina.ai` (o site responde 403 direto). Taxa de acerto ~35%: o resto não está indexado na web. O `/api/inferir-metadados` (admin) faz o mesmo mas server-side (Vercel) e é mais limitado (IP compartilhado) — o script é o caminho confiável para lotes grandes.
+- `npm run normalizar-quebras` — converte `<br/>` legado em `\n` nos campos de texto de `questoes`. Dry-run por padrão; `-- --apply` gera backup CSV em `backups/` (gitignored) e grava. Idempotente: rode de novo para confirmar 0 pendências.
 
 ## Quirks
 - Navbar is intentionally hidden on `/auth` and `/simulado/*`.

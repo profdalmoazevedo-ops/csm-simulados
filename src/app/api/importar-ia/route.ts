@@ -1,7 +1,18 @@
 import { NextResponse } from "next/server";
 import { mensagemDeErro } from "@/lib/erros";
+import { normalizarQuebras } from "@/lib/texto";
 
-export const maxDuration = 60; 
+export const maxDuration = 60;
+
+const CAMPOS_TEXTO = [
+  'enunciado',
+  'alternativa_a',
+  'alternativa_b',
+  'alternativa_c',
+  'alternativa_d',
+  'alternativa_e',
+  'comentario_gabarito'
+] as const; 
 
 export async function POST(req: Request) {
   try {
@@ -22,6 +33,7 @@ export async function POST(req: Request) {
     3. TIPO: "multipla_escolha" ou "certo_errado".
     4. GABARITO: Apenas a letra exata (A, B, C, D, E) ou C/E.
     5. METADADOS: Extraia Banca, Ano, Órgão, Cargo, Matéria e Tópico explícitos no cabeçalho.
+    6. QUEBRAS DE LINHA: preserve a separação entre parágrafos e itens do texto original usando quebras reais de linha (\n). É PROIBIDO usar tags HTML como <br/>, <p> ou <b>.
     
     MOLDE OBRIGATÓRIO DE SAÍDA (Use exatamentes estas chaves):
     {
@@ -91,9 +103,17 @@ export async function POST(req: Request) {
     const jsonParseado = JSON.parse(textoIAResposta.replace(/```json/gi, '').replace(/```/gi, '').trim());
     const listaQuestoes = jsonParseado.questoes || [jsonParseado];
 
+    const normalizarCampos = (q: Record<string, unknown>) => {
+      const saida = { ...q };
+      for (const campo of CAMPOS_TEXTO) {
+        if (typeof saida[campo] === 'string') saida[campo] = normalizarQuebras(saida[campo] as string);
+      }
+      return saida;
+    };
+
     return NextResponse.json({ 
       sucesso: true, 
-      questoes: listaQuestoes 
+      questoes: Array.isArray(listaQuestoes) ? listaQuestoes.map(normalizarCampos) : [normalizarCampos(listaQuestoes)] 
     });
 
   } catch (error) {

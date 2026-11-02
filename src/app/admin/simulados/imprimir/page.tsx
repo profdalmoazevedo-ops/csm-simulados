@@ -179,10 +179,9 @@ export default function ImprimirSimulado() {
                   </div>
 
                   {/* Enunciado */}
-                  <div 
-                    className="text-base text-black mb-6 leading-relaxed text-justify"
-                    dangerouslySetInnerHTML={{ __html: questao.enunciado || "" }} 
-                  />
+                  <div className="text-base text-black mb-6 leading-relaxed text-justify whitespace-pre-wrap">
+                    {questao.enunciado || ""}
+                  </div>
 
                   {/* Alternativas */}
                   <div className="space-y-4 pl-2 mb-6">
@@ -191,10 +190,9 @@ export default function ImprimirSimulado() {
                         <span className="font-bold min-w-[24px] text-black pt-0.5">
                           {alt.letra})
                         </span>
-                        <div 
-                          className="text-black leading-relaxed" 
-                          dangerouslySetInnerHTML={{ __html: alt.texto }} 
-                        />
+                        <div className="text-black leading-relaxed whitespace-pre-wrap">
+                          {alt.texto}
+                        </div>
                       </div>
                     ))}
                   </div>

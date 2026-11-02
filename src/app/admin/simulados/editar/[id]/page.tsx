@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { supabase } from "@/lib/supabase";
 import { mensagemDeErro } from "@/lib/erros";
 import { normalizarVinculos, QuestaoResumoTabela, VinculoNormalizado } from "@/lib/tipos";
+import { normalizarQuebras } from "@/lib/texto";
 import { 
   ArrowLeft, Save, FileText, ListChecks, Search, 
   Plus, Trash2, BookOpen, ChevronDown, ChevronUp, 
@@ -293,8 +294,8 @@ export default function EditarSimuladoAdmin() {
                             {qv.questoes?.materia} - {qv.questoes?.topico}
                           </span>
                         </div>
-                        <p className="text-sm text-zinc-300 line-clamp-3 leading-relaxed">
-                          {qv.questoes?.enunciado?.replace(/<[^>]+>/g, '')}
+                        <p className="text-sm text-zinc-300 line-clamp-3 leading-relaxed whitespace-pre-wrap">
+                          {normalizarQuebras(qv.questoes?.enunciado)}
                         </p>
                       </div>
                       <div className="flex flex-col gap-2 justify-center shrink-0">
@@ -391,8 +392,8 @@ export default function EditarSimuladoAdmin() {
                           className="cursor-pointer group mt-1" 
                           onClick={() => setQuestaoExpandidaId(isExpanded ? null : q.id)}
                         >
-                          <p className={`text-xs text-zinc-400 leading-relaxed transition-all ${isExpanded ? '' : 'line-clamp-3'}`}>
-                            {q.enunciado?.replace(/<[^>]+>/g, '')}
+                          <p className={`text-xs text-zinc-400 leading-relaxed whitespace-pre-wrap transition-all ${isExpanded ? '' : 'line-clamp-3'}`}>
+                            {normalizarQuebras(q.enunciado)}
                           </p>
                           <div className="flex items-center gap-1 text-[10px] uppercase tracking-widest text-zinc-600 mt-2 font-bold group-hover:text-emerald-500 transition-colors">
                             {isExpanded ? (

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { ChamadoSuporte } from "@/lib/tipos";
+import { previaTexto } from '@/lib/texto';
 import { uploadImagensSuporte, montarMensagemComImagens } from '@/lib/uploadImagem';
 import AnexadorImagem from '@/components/AnexadorImagem';
 import MensagemComImagens from '@/components/MensagemComImagens';
@@ -127,7 +128,7 @@ export default function GestaoSuporteAdmin() {
           if (questoes) {
             const mapa: Record<string, string> = {};
             for (const q of questoes) {
-              const texto = q.enunciado ? String(q.enunciado).replace(/<[^>]+>/g, '') : '';
+              const texto = previaTexto(q.enunciado);
               if (texto) mapa[q.id] = texto;
             }
             setEnunciados(mapa);
